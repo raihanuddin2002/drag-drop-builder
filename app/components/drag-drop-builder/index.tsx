@@ -3,6 +3,7 @@
 import {
    Copy,
    Download,
+   Eye,
    GripVertical,
    Monitor,
    Plus,
@@ -47,6 +48,8 @@ export default function DragAndDropBuilder() {
    const [selectedElement, setSelectedElement] = useState<HTMLElement | null>(null);
    const [breakpoint, setBreakpoint] = useState<Breakpoint>('desktop');
    const [draggedComponent, setDraggedComponent] = useState<Component | null>(null);
+   const [isPreviewMode, setIsPreviewMode] = useState<boolean>(false);
+   const [editorKey, setEditorKey] = useState<number>(0);
 
    // History tracks entire pages array for global undo/redo
    const [history, setHistory] = useState<{ past: Page[][]; future: Page[][] }>({ past: [], future: [] });
@@ -452,10 +455,13 @@ export default function DragAndDropBuilder() {
             });
 
             dragBtn.addEventListener('dragend', () => {
-               el.classList.remove('dragging');
-               shadow.querySelectorAll('.drop-indicator').forEach(ind => ind.remove());
-               shadow.querySelectorAll('.drag-over').forEach(zone => zone.classList.remove('drag-over'));
-               draggedElementRef.current = null;
+               // Only clean up if drop handler hasn't already
+               if (draggedElementRef.current) {
+                  el.classList.remove('dragging');
+                  shadow.querySelectorAll('.drop-indicator').forEach(ind => ind.remove());
+                  shadow.querySelectorAll('.drag-over').forEach(zone => zone.classList.remove('drag-over'));
+                  draggedElementRef.current = null;
+               }
             });
          }
 
@@ -498,7 +504,11 @@ export default function DragAndDropBuilder() {
                el.parentNode?.insertBefore(dragged, el.nextSibling);
             }
 
+            // Clean up before re-render
+            dragged.classList.remove('dragging');
             shadow.querySelectorAll('.drop-indicator').forEach(ind => ind.remove());
+            shadow.querySelectorAll('.drag-over').forEach(zone => zone.classList.remove('drag-over'));
+            draggedElementRef.current = null;
             updateHtmlFromShadow();
          });
       });
@@ -537,6 +547,10 @@ export default function DragAndDropBuilder() {
                if (!zoneEl.contains(dragged) && !dragged.contains(zoneEl)) {
                   saveHistory();
                   zoneEl.appendChild(dragged);
+                  // Clean up before re-render
+                  dragged.classList.remove('dragging');
+                  shadow.querySelectorAll('.drag-over').forEach(zone => zone.classList.remove('drag-over'));
+                  draggedElementRef.current = null;
                   updateHtmlFromShadow();
                }
             }
@@ -880,12 +894,14 @@ export default function DragAndDropBuilder() {
    return (
       <div className="flex h-screen bg-gray-100">
          {/* Left Sidebar - Elements */}
-         <div className="w-52 bg-white border-r flex flex-col">
-            <ElementsSidebar
-               onDragStart={handleSidebarDragStart}
-               onDragEnd={handleSidebarDragEnd}
-            />
-         </div>
+         {!isPreviewMode && (
+            <div className="w-52 bg-white border-r flex flex-col">
+               <ElementsSidebar
+                  onDragStart={handleSidebarDragStart}
+                  onDragEnd={handleSidebarDragEnd}
+               />
+            </div>
+         )}
 
          {/* Main Canvas Area */}
          <div className="flex-1 flex flex-col">
@@ -943,6 +959,26 @@ export default function DragAndDropBuilder() {
                </div>
 
                <div className="flex items-center gap-2">
+                  <button
+                     onClick={() => {
+                        if (isPreviewMode) {
+                           setEditorKey(k => k + 1);
+                        } else {
+                           setSelectedXPath(null);
+                           setSelectedElement(null);
+                        }
+                        setIsPreviewMode(!isPreviewMode);
+                     }}
+                     className={`flex items-center gap-2 px-4 py-2 rounded text-sm ${
+                        isPreviewMode
+                           ? 'bg-blue-500 text-white hover:bg-blue-600'
+                           : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                     }`}
+                     title={isPreviewMode ? "Exit Preview" : "Preview Mode"}
+                  >
+                     <Eye size={16} />
+                     {isPreviewMode ? 'Exit Preview' : 'Preview'}
+                  </button>
                   <label className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 cursor-pointer text-sm">
                      <Upload size={16} />
                      Import
@@ -968,7 +1004,7 @@ export default function DragAndDropBuilder() {
             </div>
 
             {/* Rich Text Toolbar */}
-            <RichTextToolbar onFormat={handleFormat} />
+            {!isPreviewMode && <RichTextToolbar onFormat={handleFormat} />}
 
             {/* Canvas - Vertical Scrolling Pages */}
             <div className="flex-1 overflow-auto bg-gray-300 p-6">
@@ -983,7 +1019,7 @@ export default function DragAndDropBuilder() {
                            <span className="text-xs text-gray-400">
                               {page.width} x {page.height}
                            </span>
-                           {pages.length > 1 && (
+                           {!isPreviewMode && pages.length > 1 && (
                               <button
                                  onClick={(e) => {
                                     e.stopPropagation();
@@ -995,24 +1031,29 @@ export default function DragAndDropBuilder() {
                                  <Trash2 size={14} />
                               </button>
                            )}
-                           <button
-                              onClick={(e) => {
-                                 e.stopPropagation();
-                                 duplicatePage(index);
-                              }}
-                              className="p-1 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded"
-                              title="Duplicate page"
-                           >
-                              <Copy size={14} />
-                           </button>
+                           {!isPreviewMode && (
+                              <button
+                                 onClick={(e) => {
+                                    e.stopPropagation();
+                                    duplicatePage(index);
+                                 }}
+                                 className="p-1 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded"
+                                 title="Duplicate page"
+                              >
+                                 <Copy size={14} />
+                              </button>
+                           )}
                         </div>
 
                         {/* Page Canvas */}
                         <div
-                           onClick={() => currentPageIndex !== index && setCurrentPageIndex(index)}
-                           className={`bg-white shadow-lg rounded transition-all ${currentPageIndex === index
-                              ? 'ring-2 ring-green-500 ring-offset-2'
-                              : 'cursor-pointer hover:ring-2 hover:ring-gray-300 hover:ring-offset-2'
+                           onClick={() => !isPreviewMode && currentPageIndex !== index && setCurrentPageIndex(index)}
+                           className={`bg-white shadow-lg rounded transition-all ${
+                              isPreviewMode
+                                 ? ''
+                                 : currentPageIndex === index
+                                    ? 'ring-2 ring-green-500 ring-offset-2'
+                                    : 'cursor-pointer hover:ring-2 hover:ring-gray-300 hover:ring-offset-2'
                               }`}
                            style={{
                               width: page.width,
@@ -1020,7 +1061,17 @@ export default function DragAndDropBuilder() {
                               overflow: 'visible',
                            }}
                         >
-                           {currentPageIndex === index ? (
+                           {isPreviewMode ? (
+                              /* Preview Mode - show clean HTML */
+                              <div
+                                 style={{
+                                    width: '100%',
+                                    minHeight: page.height,
+                                    overflow: 'hidden',
+                                 }}
+                                 dangerouslySetInnerHTML={{ __html: cleanPageHtml(page.html) }}
+                              />
+                           ) : currentPageIndex === index ? (
                               <>
                                  {draggedComponent && (
                                     <div className="bg-green-50 border border-green-300 p-3 text-center text-sm text-green-700 rounded-t">
@@ -1029,7 +1080,7 @@ export default function DragAndDropBuilder() {
                                     </div>
                                  )}
                                  <div
-                                    key={`editor-${page.id}`}
+                                    key={`editor-${page.id}-${editorKey}`}
                                     ref={containerRef}
                                     onClick={(e) => e.stopPropagation()}
                                     onDragOver={(e) => e.stopPropagation()}
@@ -1059,35 +1110,39 @@ export default function DragAndDropBuilder() {
                   ))}
 
                   {/* Add Page Button */}
-                  <button
-                     onClick={addPage}
-                     className="flex items-center gap-2 px-6 py-3 border border-dashed border-gray-400 rounded-lg text-gray-500 hover:border-green-500 hover:text-green-600 hover:bg-green-50 transition-colors"
-                  >
-                     <Plus size={20} />
-                     Add New Page
-                  </button>
+                  {!isPreviewMode && (
+                     <button
+                        onClick={addPage}
+                        className="flex items-center gap-2 px-6 py-3 border border-dashed border-gray-400 rounded-lg text-gray-500 hover:border-green-500 hover:text-green-600 hover:bg-green-50 transition-colors"
+                     >
+                        <Plus size={20} />
+                        Add New Page
+                     </button>
+                  )}
                </div>
             </div>
          </div>
 
          {/* Right Sidebar - Settings */}
-         <div className={`bg-white border-l transition-all duration-300 ${selectedXPath ? 'w-72' : 'w-0'} overflow-hidden`}>
-            {selectedXPath && elementInfo && (
-               <SettingsPanel
-                  elementInfo={elementInfo}
-                  onUpdateContent={updateContent}
-                  onUpdateStyle={updateStyle}
-                  onUpdateAttribute={updateAttribute}
-                  onUpdateCustomCss={updateCustomCss}
-                  onDelete={deleteElement}
-                  onDuplicate={duplicateElement}
-                  onClose={() => {
-                     setSelectedXPath(null);
-                     setSelectedElement(null);
-                  }}
-               />
-            )}
-         </div>
+         {!isPreviewMode && (
+            <div className={`bg-white border-l transition-all duration-300 ${selectedXPath ? 'w-72' : 'w-0'} overflow-hidden`}>
+               {selectedXPath && elementInfo && (
+                  <SettingsPanel
+                     elementInfo={elementInfo}
+                     onUpdateContent={updateContent}
+                     onUpdateStyle={updateStyle}
+                     onUpdateAttribute={updateAttribute}
+                     onUpdateCustomCss={updateCustomCss}
+                     onDelete={deleteElement}
+                     onDuplicate={duplicateElement}
+                     onClose={() => {
+                        setSelectedXPath(null);
+                        setSelectedElement(null);
+                     }}
+                  />
+               )}
+            </div>
+         )}
       </div>
    );
 }
