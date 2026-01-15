@@ -46,7 +46,7 @@ export default function RichTextToolbar({ onFormat }: RichTextToolbarProps) {
    };
 
    return (
-      <div className="flex items-center gap-1 bg-white border-b px-4 py-2 flex-wrap">
+      <div className="flex justify-center items-center gap-1 bg-white border-b px-4 py-2 flex-wrap">
          <button onMouseDown={(e) => handleMouseDown(e, 'bold')} className="p-2 hover:bg-gray-100 rounded" title="Bold">
             <Bold size={16} />
          </button>

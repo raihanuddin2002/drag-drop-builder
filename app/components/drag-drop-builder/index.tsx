@@ -1,11 +1,37 @@
 'use client'
 
-import { Copy, Download, GripVertical, Monitor, Plus, Redo2, Smartphone, Tablet, Trash2, Undo2, Upload } from "lucide-react";
+import {
+   Copy,
+   Download,
+   GripVertical,
+   Monitor,
+   Plus,
+   Redo2,
+   Smartphone,
+   Tablet,
+   Trash2,
+   Undo2,
+   Upload
+} from "lucide-react";
 import { SettingsPanel } from "./SettingsSidebar";
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Page, Breakpoint, Component, ElementInfo } from "./type";
-import { CONTAINER_TAGS, EDITOR_STYLES, INITIAL_PAGE_HTML, NON_EDITABLE_TAGS, wrapPageInDocument } from "./data";
-import { createDefaultPage, extractBodyContent, extractStyles, generatePageId, generateXPath, isEditableElement, parseStyles } from "./utils";
+import {
+   CONTAINER_TAGS,
+   EDITOR_STYLES,
+   INITIAL_PAGE_HTML,
+   NON_EDITABLE_TAGS,
+   wrapPageInDocument
+} from "./data";
+import {
+   createDefaultPage,
+   extractBodyContent,
+   extractStyles,
+   generatePageId,
+   generateXPath,
+   isEditableElement,
+   parseStyles
+} from "./utils";
 import RichTextToolbar from "./RichEditorToolbar";
 import { ElementsSidebar } from "./ElementsSidebar";
 import { PageSizeSettings } from "./PageSizeSettings";
@@ -727,7 +753,7 @@ export default function DragAndDropBuilder() {
    };
 
    // Export all pages as a single HTML file with page breaks
-   const exportHTML = (): void => {
+   const exportHTML = () => {
       const pageStyles = pages.map((page, idx) => /* css */`
             .page-${idx + 1} {
                 width: ${page.width}px;
@@ -779,7 +805,7 @@ export default function DragAndDropBuilder() {
    };
 
    // Export current page only
-   const exportCurrentPage = (): void => {
+   const exportCurrentPage = () => {
       const page = currentPage;
       const cleanHtml = cleanPageHtml(page.html);
       const fullHtml = wrapPageInDocument({ ...page, html: cleanHtml });
@@ -793,7 +819,7 @@ export default function DragAndDropBuilder() {
       URL.revokeObjectURL(url);
    };
 
-   const importHTML = (e: React.ChangeEvent<HTMLInputElement>): void => {
+   const importHTML = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
 
@@ -863,9 +889,6 @@ export default function DragAndDropBuilder() {
 
          {/* Main Canvas Area */}
          <div className="flex-1 flex flex-col">
-            {/* Rich Text Toolbar */}
-            <RichTextToolbar onFormat={handleFormat} />
-
             {/* Main Toolbar */}
             <div className="bg-white border-b p-2 flex items-center justify-between">
                <div className="flex items-center gap-2">
@@ -943,6 +966,9 @@ export default function DragAndDropBuilder() {
                   </button>
                </div>
             </div>
+
+            {/* Rich Text Toolbar */}
+            <RichTextToolbar onFormat={handleFormat} />
 
             {/* Canvas - Vertical Scrolling Pages */}
             <div className="flex-1 overflow-auto bg-gray-300 p-6">
