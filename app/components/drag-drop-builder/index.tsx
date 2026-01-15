@@ -434,137 +434,134 @@ export default function DragAndDropBuilder() {
       rootContainer.addEventListener('input', handleInput);
       rootContainer.addEventListener('focusout', handleBlur as EventListener);
 
-      // Setup drag and drop for all elements (including column containers)
-      const allEditableElements = shadow.querySelectorAll('[data-xpath]:not([data-container]):not(.drop-zone)');
+      // Setup drag buttons (dragstart/dragend)
+      const allDragBtns = shadow.querySelectorAll('.element-toolbar-btn[data-action="drag"]');
+      allDragBtns.forEach(dragBtn => {
+         const el = dragBtn.closest('[data-xpath]') as HTMLElement;
+         if (!el) return;
 
-      allEditableElements.forEach(element => {
-         const el = element as HTMLElement;
-         const dragBtn = el.querySelector('.element-toolbar-btn[data-action="drag"]');
-
-         if (dragBtn) {
-            (dragBtn as HTMLElement).draggable = true;
-            dragBtn.addEventListener('dragstart', (e: Event) => {
-               const dragEvent = e as DragEvent;
-               dragEvent.stopPropagation();
-               draggedElementRef.current = el;
-               el.classList.add('dragging');
-               if (dragEvent.dataTransfer) {
-                  dragEvent.dataTransfer.effectAllowed = 'move';
-                  dragEvent.dataTransfer.setData('text/plain', 'element');
-               }
-            });
-
-            dragBtn.addEventListener('dragend', () => {
-               // Only clean up if drop handler hasn't already
-               if (draggedElementRef.current) {
-                  el.classList.remove('dragging');
-                  shadow.querySelectorAll('.drop-indicator').forEach(ind => ind.remove());
-                  shadow.querySelectorAll('.drag-over').forEach(zone => zone.classList.remove('drag-over'));
-                  draggedElementRef.current = null;
-               }
-            });
-         }
-
-         // Dragover - show indicator
-         el.addEventListener('dragover', (e: Event) => {
+         (dragBtn as HTMLElement).draggable = true;
+         dragBtn.addEventListener('dragstart', (e: Event) => {
             const dragEvent = e as DragEvent;
-            dragEvent.preventDefault();
             dragEvent.stopPropagation();
+            draggedElementRef.current = el;
+            el.classList.add('dragging');
+            if (dragEvent.dataTransfer) {
+               dragEvent.dataTransfer.effectAllowed = 'move';
+               dragEvent.dataTransfer.setData('text/plain', 'element');
+            }
+         });
 
-            const dragged = draggedElementRef.current;
-            if (!dragged || dragged === el || el.contains(dragged) || dragged.contains(el)) return;
-            if (draggedComponent) return;
+         dragBtn.addEventListener('dragend', () => {
+            if (draggedElementRef.current) {
+               draggedElementRef.current.classList.remove('dragging');
+               shadow.querySelectorAll('.drop-indicator').forEach(ind => ind.remove());
+               shadow.querySelectorAll('.drag-over').forEach(zone => zone.classList.remove('drag-over'));
+               draggedElementRef.current = null;
+            }
+         });
+      });
 
+      // Event delegation for dragover and drop
+      const handleDragOver = (e: Event) => {
+         const dragEvent = e as DragEvent;
+         dragEvent.preventDefault();
+
+         const target = dragEvent.target as HTMLElement;
+         const dragged = draggedElementRef.current;
+
+         // First try to find a target element for reordering
+         const targetEl = target.closest('[data-xpath]:not([data-container]):not(.drop-zone)') as HTMLElement;
+
+         // Handle element reordering (show indicator)
+         if (dragged && !draggedComponent && targetEl && targetEl !== dragged && !targetEl.contains(dragged) && !dragged.contains(targetEl)) {
             shadow.querySelectorAll('.drop-indicator').forEach(ind => ind.remove());
-            const rect = el.getBoundingClientRect();
+            const rect = targetEl.getBoundingClientRect();
             const indicator = document.createElement('div');
             indicator.className = 'drop-indicator';
 
             if (dragEvent.clientY < rect.top + rect.height / 2) {
-               el.parentNode?.insertBefore(indicator, el);
+               targetEl.parentNode?.insertBefore(indicator, targetEl);
             } else {
-               el.parentNode?.insertBefore(indicator, el.nextSibling);
+               targetEl.parentNode?.insertBefore(indicator, targetEl.nextSibling);
             }
-         });
+            return;
+         }
 
-         // Drop - move element
-         el.addEventListener('drop', (e: Event) => {
-            const dragEvent = e as DragEvent;
-            dragEvent.preventDefault();
-            dragEvent.stopPropagation();
+         // Handle drop zones and containers (for new components or moving to empty areas)
+         const dropZone = target.closest('.drop-zone, [data-container="true"]') as HTMLElement;
+         if (dropZone && (draggedComponent || dragged)) {
+            dropZone.classList.add('drag-over');
+         }
+      };
 
-            const dragged = draggedElementRef.current;
-            if (!dragged || dragged === el || el.contains(dragged) || dragged.contains(el)) return;
+      const handleDragLeave = (e: Event) => {
+         const target = e.target as HTMLElement;
+         if (target.classList.contains('drop-zone') || target.hasAttribute('data-container')) {
+            target.classList.remove('drag-over');
+         }
+      };
 
-            saveHistory();
-            const rect = el.getBoundingClientRect();
-            if (dragEvent.clientY < rect.top + rect.height / 2) {
-               el.parentNode?.insertBefore(dragged, el);
-            } else {
-               el.parentNode?.insertBefore(dragged, el.nextSibling);
-            }
+      const handleDrop = (e: Event) => {
+         const dragEvent = e as DragEvent;
+         dragEvent.preventDefault();
+         dragEvent.stopPropagation();
 
-            // Clean up before re-render
-            dragged.classList.remove('dragging');
-            shadow.querySelectorAll('.drop-indicator').forEach(ind => ind.remove());
-            shadow.querySelectorAll('.drag-over').forEach(zone => zone.classList.remove('drag-over'));
-            draggedElementRef.current = null;
-            updateHtmlFromShadow();
-         });
-      });
+         const target = dragEvent.target as HTMLElement;
+         const dragged = draggedElementRef.current;
 
-      // Setup drop zones (for new components and moving elements into columns)
-      const dropZones = shadow.querySelectorAll('.drop-zone, [data-container="true"]');
+         shadow.querySelectorAll('.drop-indicator').forEach(ind => ind.remove());
+         shadow.querySelectorAll('.drag-over').forEach(zone => zone.classList.remove('drag-over'));
 
-      dropZones.forEach((zone) => {
-         const zoneEl = zone as HTMLElement;
-
-         const handleDragOver = (e: DragEvent) => {
-            e.preventDefault();
-            e.stopPropagation();
-            zoneEl.classList.add('drag-over');
-         };
-
-         const handleDragLeave = (e: DragEvent) => {
-            if (e.target === zoneEl) {
-               zoneEl.classList.remove('drag-over');
-            }
-         };
-
-         const handleDrop = (e: DragEvent) => {
-            e.preventDefault();
-            e.stopPropagation();
-            zoneEl.classList.remove('drag-over');
-            shadow.querySelectorAll('.drop-indicator').forEach(ind => ind.remove());
-
+         // Handle drop zones and containers
+         const dropZone = target.closest('.drop-zone, [data-container="true"]') as HTMLElement;
+         if (dropZone) {
             if (draggedComponent) {
                saveHistory();
-               zoneEl.insertAdjacentHTML('beforeend', draggedComponent.html);
+               dropZone.insertAdjacentHTML('beforeend', draggedComponent.html);
                setDraggedComponent(null);
                updateHtmlFromShadow();
-            } else if (draggedElementRef.current) {
-               const dragged = draggedElementRef.current;
-               if (!zoneEl.contains(dragged) && !dragged.contains(zoneEl)) {
-                  saveHistory();
-                  zoneEl.appendChild(dragged);
-                  // Clean up before re-render
-                  dragged.classList.remove('dragging');
-                  shadow.querySelectorAll('.drag-over').forEach(zone => zone.classList.remove('drag-over'));
-                  draggedElementRef.current = null;
-                  updateHtmlFromShadow();
-               }
+               return;
+            } else if (dragged && !dropZone.contains(dragged) && !dragged.contains(dropZone)) {
+               saveHistory();
+               dropZone.appendChild(dragged);
+               dragged.classList.remove('dragging');
+               draggedElementRef.current = null;
+               updateHtmlFromShadow();
+               return;
             }
-         };
+         }
 
-         zoneEl.addEventListener('dragover', handleDragOver);
-         zoneEl.addEventListener('dragleave', handleDragLeave);
-         zoneEl.addEventListener('drop', handleDrop);
-      });
+         // Handle element reordering
+         if (!dragged || draggedComponent) return;
+
+         const targetEl = target.closest('[data-xpath]:not([data-container]):not(.drop-zone)') as HTMLElement;
+         if (!targetEl || targetEl === dragged || targetEl.contains(dragged) || dragged.contains(targetEl)) return;
+
+         saveHistory();
+         const rect = targetEl.getBoundingClientRect();
+         if (dragEvent.clientY < rect.top + rect.height / 2) {
+            targetEl.parentNode?.insertBefore(dragged, targetEl);
+         } else {
+            targetEl.parentNode?.insertBefore(dragged, targetEl.nextSibling);
+         }
+
+         dragged.classList.remove('dragging');
+         draggedElementRef.current = null;
+         updateHtmlFromShadow();
+      };
+
+      rootContainer.addEventListener('dragover', handleDragOver);
+      rootContainer.addEventListener('dragleave', handleDragLeave);
+      rootContainer.addEventListener('drop', handleDrop);
 
       return () => {
          rootContainer.removeEventListener('click', handleClick);
          rootContainer.removeEventListener('input', handleInput);
          rootContainer.removeEventListener('focusout', handleBlur as EventListener);
+         rootContainer.removeEventListener('dragover', handleDragOver);
+         rootContainer.removeEventListener('dragleave', handleDragLeave);
+         rootContainer.removeEventListener('drop', handleDrop);
       };
    }, [html, draggedComponent, saveHistory, updateHtmlFromShadow, currentPageIndex]);
 
@@ -879,17 +876,6 @@ export default function DragAndDropBuilder() {
    };
 
    const elementInfo = getElementInfo();
-
-   // Get scale factor for preview based on breakpoint
-   const getPreviewScale = () => {
-      switch (breakpoint) {
-         case 'mobile': return Math.min(1, 375 / currentPage.width);
-         case 'tablet': return Math.min(1, 768 / currentPage.width);
-         default: return 1;
-      }
-   };
-
-   const previewScale = getPreviewScale();
 
    return (
       <div className="flex h-screen bg-gray-100">
