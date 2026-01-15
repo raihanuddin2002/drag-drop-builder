@@ -510,10 +510,27 @@ export default function DragAndDropBuilder() {
          const target = dragEvent.target as HTMLElement;
          const dragged = draggedElementRef.current;
 
-         shadow.querySelectorAll('.drop-indicator').forEach(ind => ind.remove());
+         // Check if there's a drop indicator - use it for placement
+         const dropIndicator = shadow.querySelector('.drop-indicator') as HTMLElement;
+
+         // Clean up visual states
          shadow.querySelectorAll('.drag-over').forEach(zone => zone.classList.remove('drag-over'));
 
-         // Handle drop zones and containers
+         // Handle element reordering using drop indicator position
+         if (dragged && !draggedComponent && dropIndicator) {
+            saveHistory();
+            dropIndicator.parentNode?.insertBefore(dragged, dropIndicator);
+            dropIndicator.remove();
+            dragged.classList.remove('dragging');
+            draggedElementRef.current = null;
+            updateHtmlFromShadow();
+            return;
+         }
+
+         // Remove indicator if not used
+         shadow.querySelectorAll('.drop-indicator').forEach(ind => ind.remove());
+
+         // Handle drop zones and containers (for new components)
          const dropZone = target.closest('.drop-zone, [data-container="true"]') as HTMLElement;
          if (dropZone) {
             if (draggedComponent) {
@@ -532,23 +549,11 @@ export default function DragAndDropBuilder() {
             }
          }
 
-         // Handle element reordering
-         if (!dragged || draggedComponent) return;
-
-         const targetEl = target.closest('[data-xpath]:not([data-container]):not(.drop-zone)') as HTMLElement;
-         if (!targetEl || targetEl === dragged || targetEl.contains(dragged) || dragged.contains(targetEl)) return;
-
-         saveHistory();
-         const rect = targetEl.getBoundingClientRect();
-         if (dragEvent.clientY < rect.top + rect.height / 2) {
-            targetEl.parentNode?.insertBefore(dragged, targetEl);
-         } else {
-            targetEl.parentNode?.insertBefore(dragged, targetEl.nextSibling);
+         // Cleanup if nothing happened
+         if (dragged) {
+            dragged.classList.remove('dragging');
+            draggedElementRef.current = null;
          }
-
-         dragged.classList.remove('dragging');
-         draggedElementRef.current = null;
-         updateHtmlFromShadow();
       };
 
       rootContainer.addEventListener('dragover', handleDragOver);
