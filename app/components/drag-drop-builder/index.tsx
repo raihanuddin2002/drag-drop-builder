@@ -519,10 +519,20 @@ export default function DragAndDropBuilder() {
          // Handle element reordering using drop indicator position
          if (dragged && !draggedComponent && dropIndicator) {
             saveHistory();
+            const parent = dropIndicator.parentNode;
             dropIndicator.parentNode?.insertBefore(dragged, dropIndicator);
             dropIndicator.remove();
             dragged.classList.remove('dragging');
             draggedElementRef.current = null;
+
+            // Recalculate XPath for the moved element to update selection
+            const container = shadow.querySelector('.shadow-root-container') as HTMLElement;
+            if (container && parent) {
+               const newXPath = generateXPath(dragged, container);
+               setSelectedXPath(newXPath);
+               setSelectedElement(dragged);
+            }
+
             updateHtmlFromShadow();
             return;
          }
