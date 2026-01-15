@@ -1,25 +1,78 @@
 import {
+   AlignCenter,
+   AlignJustify,
+   AlignLeft,
+   AlignRight,
    Bold,
+   Indent,
    Italic,
    Link,
    List,
    ListOrdered,
+   Outdent,
    Strikethrough,
    Subscript,
    Superscript,
    Underline
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useRef, useEffect, useState } from "react";
 import { RICH_TOOLBAR_FONT_FAMILIES, RICH_TOOLBAR_FONT_SIZES } from "../data";
+import { ElementInfo } from "../type";
 
 export type RichTextToolbarProps = {
    onFormat: (command: string, value?: string) => void;
+   onUpdateStyle?: (prop: string, value: string) => void;
+   elementInfo?: ElementInfo | null;
 }
 
-export default function RichTextToolbar({ onFormat }: RichTextToolbarProps) {
-   const [fontSize, setFontSize] = useState('12px');
+export default function RichTextToolbar({ onFormat, onUpdateStyle, elementInfo }: RichTextToolbarProps) {
+   const [fontSize, setFontSize] = useState('16px');
    const [fontFamily, setFontFamily] = useState('Arial');
+   const [fontColor, setFontColor] = useState('#000000');
+   const [textAlign, setTextAlign] = useState('left');
    const savedSelectionRef = useRef<Range | null>(null);
+   const colorInputRef = useRef<HTMLInputElement>(null);
+
+   // Sync with elementInfo when it changes
+   useEffect(() => {
+      if (elementInfo?.styles) {
+         const styles = elementInfo.styles;
+
+         // Sync font size
+         const size = styles['font-size'] || styles.fontSize;
+         if (size) setFontSize(size);
+
+         // Sync font family
+         const family = styles['font-family'] || styles.fontFamily;
+         if (family) setFontFamily(family.replace(/['"]/g, '').split(',')[0].trim());
+
+         // Sync color
+         const color = styles.color;
+         if (color) setFontColor(parseColorToHex(color));
+
+         // Sync text align
+         const align = styles['text-align'] || styles.textAlign;
+         if (align) setTextAlign(align);
+      }
+   }, [elementInfo]);
+
+   // Helper to convert rgb/rgba to hex
+   const rgbToHex = (rgb: string): string => {
+      const match = rgb.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+      if (!match) return '#000000';
+      const r = parseInt(match[1]).toString(16).padStart(2, '0');
+      const g = parseInt(match[2]).toString(16).padStart(2, '0');
+      const b = parseInt(match[3]).toString(16).padStart(2, '0');
+      return `#${r}${g}${b}`;
+   };
+
+   // Helper to parse any color format to hex
+   const parseColorToHex = (color: string): string => {
+      if (!color) return '#000000';
+      if (color.startsWith('#')) return color.slice(0, 7);
+      if (color.startsWith('rgb')) return rgbToHex(color);
+      return '#000000';
+   };
 
    // Save current selection when interacting with toolbar
    const saveSelection = () => {
@@ -93,6 +146,94 @@ export default function RichTextToolbar({ onFormat }: RichTextToolbarProps) {
 
          <div className="w-px h-6 bg-gray-300 mx-1" />
 
+         {/* Alignment */}
+         <button
+            onMouseDown={(e) => {
+               handleMouseDown(e, 'justifyLeft');
+               setTextAlign('left');
+               onUpdateStyle?.('textAlign', 'left');
+            }}
+            className={`p-2 hover:bg-gray-100 rounded ${textAlign === 'left' ? 'bg-gray-200' : ''}`}
+            title="Align Left"
+         >
+            <AlignLeft size={16} />
+         </button>
+         <button
+            onMouseDown={(e) => {
+               handleMouseDown(e, 'justifyCenter');
+               setTextAlign('center');
+               onUpdateStyle?.('textAlign', 'center');
+            }}
+            className={`p-2 hover:bg-gray-100 rounded ${textAlign === 'center' ? 'bg-gray-200' : ''}`}
+            title="Align Center"
+         >
+            <AlignCenter size={16} />
+         </button>
+         <button
+            onMouseDown={(e) => {
+               handleMouseDown(e, 'justifyRight');
+               setTextAlign('right');
+               onUpdateStyle?.('textAlign', 'right');
+            }}
+            className={`p-2 hover:bg-gray-100 rounded ${textAlign === 'right' ? 'bg-gray-200' : ''}`}
+            title="Align Right"
+         >
+            <AlignRight size={16} />
+         </button>
+         <button
+            onMouseDown={(e) => {
+               handleMouseDown(e, 'justifyFull');
+               setTextAlign('justify');
+               onUpdateStyle?.('textAlign', 'justify');
+            }}
+            className={`p-2 hover:bg-gray-100 rounded ${textAlign === 'justify' ? 'bg-gray-200' : ''}`}
+            title="Justify"
+         >
+            <AlignJustify size={16} />
+         </button>
+
+         <div className="w-px h-6 bg-gray-300 mx-1" />
+
+         {/* Indent */}
+         <button onMouseDown={(e) => handleMouseDown(e, 'outdent')} className="p-2 hover:bg-gray-100 rounded" title="Decrease Indent">
+            <Outdent size={16} />
+         </button>
+         <button onMouseDown={(e) => handleMouseDown(e, 'indent')} className="p-2 hover:bg-gray-100 rounded" title="Increase Indent">
+            <Indent size={16} />
+         </button>
+
+         <div className="w-px h-6 bg-gray-300 mx-1" />
+
+         {/* Font Color */}
+         <div className="relative">
+            <button
+               onMouseDown={(e) => {
+                  e.preventDefault();
+                  saveSelection();
+                  colorInputRef.current?.click();
+               }}
+               className="p-2 hover:bg-gray-100 rounded flex items-center gap-1"
+               title="Font Color"
+            >
+               <span className="text-sm font-bold" style={{ color: fontColor }}>A</span>
+               <div className="w-4 h-1 rounded" style={{ backgroundColor: fontColor }} />
+            </button>
+            <input
+               ref={colorInputRef}
+               type="color"
+               value={fontColor}
+               onChange={(e) => {
+                  restoreSelection();
+                  setFontColor(e.target.value);
+                  onFormat('foreColor', e.target.value);
+                  onUpdateStyle?.('color', e.target.value);
+               }}
+               className="absolute opacity-0 w-0 h-0"
+            />
+         </div>
+
+         <div className="w-px h-6 bg-gray-300 mx-1" />
+
          <select
             value={fontSize}
             onMouseDown={saveSelection}
@@ -100,6 +241,7 @@ export default function RichTextToolbar({ onFormat }: RichTextToolbarProps) {
                restoreSelection();
                setFontSize(e.target.value);
                onFormat('fontSize', e.target.value);
+               onUpdateStyle?.('fontSize', e.target.value);
             }}
             className="px-2 py-1 border rounded text-sm"
          >
@@ -115,6 +257,7 @@ export default function RichTextToolbar({ onFormat }: RichTextToolbarProps) {
                restoreSelection();
                setFontFamily(e.target.value);
                onFormat('fontName', e.target.value);
+               onUpdateStyle?.('fontFamily', e.target.value);
             }}
             className="px-2 py-1 border rounded text-sm"
          >

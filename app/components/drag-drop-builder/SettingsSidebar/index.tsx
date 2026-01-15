@@ -1,7 +1,42 @@
 import { ChevronRight, Copy, Trash2 } from "lucide-react";
 import { ElementInfo } from "../type";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { StyleInput } from "./StyleInput";
+
+// Helper functions for color conversion
+const rgbToHex = (rgb: string): string => {
+   const match = rgb.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+   if (!match) return '#000000';
+   const r = parseInt(match[1]).toString(16).padStart(2, '0');
+   const g = parseInt(match[2]).toString(16).padStart(2, '0');
+   const b = parseInt(match[3]).toString(16).padStart(2, '0');
+   return `#${r}${g}${b}`;
+};
+
+const getOpacityFromColor = (color: string): number => {
+   const match = color.match(/^rgba?\(\d+,\s*\d+,\s*\d+,?\s*([\d.]+)?\)/);
+   if (match && match[1] !== undefined) {
+      return parseFloat(match[1]);
+   }
+   return 1;
+};
+
+const hexToRgba = (hex: string, opacity: number): string => {
+   const r = parseInt(hex.slice(1, 3), 16);
+   const g = parseInt(hex.slice(3, 5), 16);
+   const b = parseInt(hex.slice(5, 7), 16);
+   if (opacity === 1) {
+      return hex;
+   }
+   return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+};
+
+const parseColorToHex = (color: string): string => {
+   if (!color) return '#000000';
+   if (color.startsWith('#')) return color.slice(0, 7);
+   if (color.startsWith('rgb')) return rgbToHex(color);
+   return '#000000';
+};
 
 interface SettingsPanelProps {
    elementInfo: ElementInfo | null;
@@ -25,6 +60,12 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
    onClose,
 }) => {
    const [activeTab, setActiveTab] = useState<'content' | 'style' | 'advanced'>('style');
+
+   // Parse current color values
+   const colorHex = useMemo(() => parseColorToHex(elementInfo?.styles.color || ''), [elementInfo?.styles.color]);
+   const colorOpacity = useMemo(() => getOpacityFromColor(elementInfo?.styles.color || ''), [elementInfo?.styles.color]);
+   const bgHex = useMemo(() => parseColorToHex(elementInfo?.styles.background || elementInfo?.styles.backgroundColor || ''), [elementInfo?.styles.background, elementInfo?.styles.backgroundColor]);
+   const bgOpacity = useMemo(() => getOpacityFromColor(elementInfo?.styles.background || elementInfo?.styles.backgroundColor || ''), [elementInfo?.styles.background, elementInfo?.styles.backgroundColor]);
 
    if (!elementInfo) return null;
 
@@ -149,37 +190,63 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
                   <div>
                      <label className="block text-xs text-gray-600 mb-1">Color</label>
-                     <div className="flex gap-2">
+                     <div className="flex gap-2 items-center">
                         <input
                            type="color"
-                           value={elementInfo.styles.color || '#000000'}
-                           onChange={(e) => onUpdateStyle('color', e.target.value)}
-                           className="w-12 h-8 border rounded cursor-pointer"
+                           value={colorHex}
+                           onChange={(e) => onUpdateStyle('color', hexToRgba(e.target.value, colorOpacity))}
+                           className="w-10 h-8 border rounded cursor-pointer"
                         />
                         <StyleInput
-                           value={elementInfo.styles.color || ''}
-                           onChange={(v) => onUpdateStyle('color', v)}
+                           value={colorHex}
+                           onChange={(v) => onUpdateStyle('color', hexToRgba(v.startsWith('#') ? v : `#${v}`, colorOpacity))}
                            placeholder="#000000"
-                           className="flex-1 px-2 py-1.5 border rounded text-sm"
+                           className="flex-1 px-2 py-1.5 border rounded text-sm font-mono"
                         />
+                     </div>
+                     <div className="flex gap-2 items-center mt-2">
+                        <label className="text-xs text-gray-500 w-14">Opacity</label>
+                        <input
+                           type="range"
+                           min="0"
+                           max="1"
+                           step="0.01"
+                           value={colorOpacity}
+                           onChange={(e) => onUpdateStyle('color', hexToRgba(colorHex, parseFloat(e.target.value)))}
+                           className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                        />
+                        <span className="text-xs text-gray-600 w-10 text-right">{Math.round(colorOpacity * 100)}%</span>
                      </div>
                   </div>
 
                   <div>
                      <label className="block text-xs text-gray-600 mb-1">Background</label>
-                     <div className="flex gap-2">
+                     <div className="flex gap-2 items-center">
                         <input
                            type="color"
-                           value={elementInfo.styles.background || elementInfo.styles.backgroundColor || '#ffffff'}
-                           onChange={(e) => onUpdateStyle('background', e.target.value)}
-                           className="w-12 h-8 border rounded cursor-pointer"
+                           value={bgHex}
+                           onChange={(e) => onUpdateStyle('background', hexToRgba(e.target.value, bgOpacity))}
+                           className="w-10 h-8 border rounded cursor-pointer"
                         />
                         <StyleInput
-                           value={elementInfo.styles.background || elementInfo.styles.backgroundColor || ''}
-                           onChange={(v) => onUpdateStyle('background', v)}
-                           placeholder="transparent"
-                           className="flex-1 px-2 py-1.5 border rounded text-sm"
+                           value={bgHex}
+                           onChange={(v) => onUpdateStyle('background', hexToRgba(v.startsWith('#') ? v : `#${v}`, bgOpacity))}
+                           placeholder="#ffffff"
+                           className="flex-1 px-2 py-1.5 border rounded text-sm font-mono"
                         />
+                     </div>
+                     <div className="flex gap-2 items-center mt-2">
+                        <label className="text-xs text-gray-500 w-14">Opacity</label>
+                        <input
+                           type="range"
+                           min="0"
+                           max="1"
+                           step="0.01"
+                           value={bgOpacity}
+                           onChange={(e) => onUpdateStyle('background', hexToRgba(bgHex, parseFloat(e.target.value)))}
+                           className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                        />
+                        <span className="text-xs text-gray-600 w-10 text-right">{Math.round(bgOpacity * 100)}%</span>
                      </div>
                   </div>
 
@@ -191,6 +258,24 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                         placeholder="16px, 1.5rem"
                         className="w-full px-2 py-1.5 border rounded text-sm"
                      />
+                  </div>
+
+                  <div>
+                     <label className="block text-xs text-gray-600 mb-1">Font Family</label>
+                     <select
+                        value={(elementInfo.styles['font-family'] || elementInfo.styles.fontFamily || 'Arial').replace(/['"]/g, '').split(',')[0].trim()}
+                        onChange={(e) => onUpdateStyle('fontFamily', e.target.value)}
+                        className="w-full px-2 py-1.5 border rounded text-sm"
+                     >
+                        <option value="Arial">Arial</option>
+                        <option value="Helvetica">Helvetica</option>
+                        <option value="Times New Roman">Times New Roman</option>
+                        <option value="Georgia">Georgia</option>
+                        <option value="Verdana">Verdana</option>
+                        <option value="Courier New">Courier New</option>
+                        <option value="Trebuchet MS">Trebuchet MS</option>
+                        <option value="Impact">Impact</option>
+                     </select>
                   </div>
 
                   <div>
@@ -255,6 +340,19 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                      />
                   </div>
 
+                  {/* 
+ <SpacingEditor
+                     marginTop={elementInfo.styles['margin-top'] || elementInfo.styles.marginTop || ''}
+                     marginRight={elementInfo.styles['margin-right'] || elementInfo.styles.marginRight || ''}
+                     marginBottom={elementInfo.styles['margin-bottom'] || elementInfo.styles.marginBottom || ''}
+                     marginLeft={elementInfo.styles['margin-left'] || elementInfo.styles.marginLeft || ''}
+                     paddingTop={elementInfo.styles['padding-top'] || elementInfo.styles.paddingTop || ''}
+                     paddingRight={elementInfo.styles['padding-right'] || elementInfo.styles.paddingRight || ''}
+                     paddingBottom={elementInfo.styles['padding-bottom'] || elementInfo.styles.paddingBottom || ''}
+                     paddingLeft={elementInfo.styles['padding-left'] || elementInfo.styles.paddingLeft || ''}
+                     onUpdateStyle={onUpdateStyle}
+                  />
+*/}
                   <div>
                      <label className="block text-xs text-gray-600 mb-1">Border</label>
                      <StyleInput

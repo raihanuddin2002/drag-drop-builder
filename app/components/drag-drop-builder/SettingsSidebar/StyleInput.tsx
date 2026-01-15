@@ -21,7 +21,9 @@ export const StyleInput: React.FC<StyleInputProps> = ({ value, onChange, placeho
       <input
          type={type}
          value={localValue}
-         onChange={(e) => setLocalValue(e.target.value)}
+         onChange={(e) => {
+            setLocalValue(e.target.value)
+         }}
          onBlur={() => {
             if (localValue !== value) {
                onChange(localValue);

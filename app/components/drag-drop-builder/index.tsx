@@ -849,6 +849,19 @@ export default function DragAndDropBuilder() {
          return;
       }
 
+      // Handle alignment - skip execCommand, use style update instead (handled by onUpdateStyle)
+      if (['justifyLeft', 'justifyCenter', 'justifyRight', 'justifyFull'].includes(command)) {
+         // Alignment is handled via onUpdateStyle('textAlign', ...) in RichTextToolbar
+         // Don't use execCommand as it creates wrapper elements
+         return;
+      }
+
+      // Handle foreColor - skip execCommand, use style update instead
+      if (command === 'foreColor') {
+         // Color is handled via onUpdateStyle('color', ...) in RichTextToolbar
+         return;
+      }
+
       // execCommand is deprecated but still works for rich text editing
       document.execCommand(command, false, value);
 
@@ -1105,7 +1118,13 @@ export default function DragAndDropBuilder() {
             </div>
 
             {/* Rich Text Toolbar */}
-            {!isPreviewMode && <RichTextToolbar onFormat={handleFormat} />}
+            {!isPreviewMode && (
+               <RichTextToolbar
+                  onFormat={handleFormat}
+                  onUpdateStyle={updateStyle}
+                  elementInfo={elementInfo}
+               />
+            )}
 
             {/* Canvas - Vertical Scrolling Pages */}
             <div className="flex-1 overflow-auto bg-gray-300 p-6">
