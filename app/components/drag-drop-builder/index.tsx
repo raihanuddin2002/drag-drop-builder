@@ -470,12 +470,28 @@ export default function DragAndDropBuilder() {
          const target = dragEvent.target as HTMLElement;
          const dragged = draggedElementRef.current;
 
-         // First try to find a target element for reordering
+         // Priority 1: If directly over a .drop-zone element (inside column containers),
+         // highlight it for dropping INTO the container
+         if (target.classList.contains('drop-zone')) {
+            shadow.querySelectorAll('.drop-indicator').forEach(ind => ind.remove());
+            shadow.querySelectorAll('.drag-over').forEach(zone => zone.classList.remove('drag-over'));
+            if (draggedComponent || dragged) {
+               target.classList.add('drag-over');
+            }
+            return;
+         }
+
+         // Priority 2: Find target element for positioning (show indicator before/after)
+         // Works for both existing elements and new components from sidebar
          const targetEl = target.closest('[data-xpath]:not([data-container]):not(.drop-zone)') as HTMLElement;
 
-         // Handle element reordering (show indicator)
-         if (dragged && !draggedComponent && targetEl && targetEl !== dragged && !targetEl.contains(dragged) && !dragged.contains(targetEl)) {
+         // Show drop indicator for positioning between/around elements
+         const canShowIndicator = targetEl &&
+            (draggedComponent || (dragged && targetEl !== dragged && !targetEl.contains(dragged) && !dragged.contains(targetEl)));
+
+         if (canShowIndicator) {
             shadow.querySelectorAll('.drop-indicator').forEach(ind => ind.remove());
+            shadow.querySelectorAll('.drag-over').forEach(zone => zone.classList.remove('drag-over'));
             const rect = targetEl.getBoundingClientRect();
             const indicator = document.createElement('div');
             indicator.className = 'drop-indicator';
@@ -488,16 +504,46 @@ export default function DragAndDropBuilder() {
             return;
          }
 
-         // Handle drop zones and containers (for new components or moving to empty areas)
-         const dropZone = target.closest('.drop-zone, [data-container="true"]') as HTMLElement;
-         if (dropZone && (draggedComponent || dragged)) {
-            dropZone.classList.add('drag-over');
+         // Priority 3: Handle main container (for dropping at the top or end)
+         const mainContainer = target.closest('[data-container="true"]') as HTMLElement;
+         if (mainContainer && (draggedComponent || dragged)) {
+            shadow.querySelectorAll('.drop-indicator').forEach(ind => ind.remove());
+            shadow.querySelectorAll('.drag-over').forEach(zone => zone.classList.remove('drag-over'));
+
+            // Get all direct children with data-xpath (excluding drop-zones and indicators)
+            const children = mainContainer.querySelectorAll(':scope > [data-xpath]:not(.drop-zone):not(.drop-indicator)');
+
+            if (children.length > 0) {
+               const firstChild = children[0] as HTMLElement;
+               const lastChild = children[children.length - 1] as HTMLElement;
+               const firstChildRect = firstChild.getBoundingClientRect();
+               const lastChildRect = lastChild.getBoundingClientRect();
+
+               const indicator = document.createElement('div');
+               indicator.className = 'drop-indicator';
+
+               // If mouse is above the first child's vertical center, show indicator at top
+               if (dragEvent.clientY < firstChildRect.top + firstChildRect.height / 2) {
+                  firstChild.parentNode?.insertBefore(indicator, firstChild);
+               }
+               // If mouse is below the last child's vertical center, show indicator at bottom
+               else if (dragEvent.clientY > lastChildRect.top + lastChildRect.height / 2) {
+                  lastChild.parentNode?.insertBefore(indicator, lastChild.nextSibling);
+               }
+               // Otherwise just highlight the container
+               else {
+                  mainContainer.classList.add('drag-over');
+               }
+            } else {
+               // No children, just highlight the container
+               mainContainer.classList.add('drag-over');
+            }
          }
       };
 
       const handleDragLeave = (e: Event) => {
          const target = e.target as HTMLElement;
-         if (target.classList.contains('drop-zone') || target.hasAttribute('data-container')) {
+         if (target.classList.contains('drop-zone') || target.hasAttribute('data-container') || target.hasAttribute('data-column-container')) {
             target.classList.remove('drag-over');
          }
       };
@@ -516,32 +562,44 @@ export default function DragAndDropBuilder() {
          // Clean up visual states
          shadow.querySelectorAll('.drag-over').forEach(zone => zone.classList.remove('drag-over'));
 
-         // Handle element reordering using drop indicator position
-         if (dragged && !draggedComponent && dropIndicator) {
+         // Handle drop at indicator position (for both new components and existing elements)
+         if (dropIndicator) {
             saveHistory();
-            const parent = dropIndicator.parentNode;
-            dropIndicator.parentNode?.insertBefore(dragged, dropIndicator);
-            dropIndicator.remove();
-            dragged.classList.remove('dragging');
-            draggedElementRef.current = null;
 
-            // Recalculate XPath for the moved element to update selection
-            const container = shadow.querySelector('.shadow-root-container') as HTMLElement;
-            if (container && parent) {
-               const newXPath = generateXPath(dragged, container);
-               setSelectedXPath(newXPath);
-               setSelectedElement(dragged);
+            if (draggedComponent) {
+               // Insert new component at indicator position
+               dropIndicator.insertAdjacentHTML('beforebegin', draggedComponent.html);
+               dropIndicator.remove();
+               setDraggedComponent(null);
+               updateHtmlFromShadow();
+               return;
+            } else if (dragged) {
+               // Move existing element to indicator position
+               const parent = dropIndicator.parentNode;
+               dropIndicator.parentNode?.insertBefore(dragged, dropIndicator);
+               dropIndicator.remove();
+               dragged.classList.remove('dragging');
+               draggedElementRef.current = null;
+
+               // Recalculate XPath for the moved element to update selection
+               const container = shadow.querySelector('.shadow-root-container') as HTMLElement;
+               if (container && parent) {
+                  const newXPath = generateXPath(dragged, container);
+                  setSelectedXPath(newXPath);
+                  setSelectedElement(dragged);
+               }
+
+               updateHtmlFromShadow();
+               return;
             }
-
-            updateHtmlFromShadow();
-            return;
          }
 
          // Remove indicator if not used
          shadow.querySelectorAll('.drop-indicator').forEach(ind => ind.remove());
 
          // Handle drop zones and containers (for new components)
-         const dropZone = target.closest('.drop-zone, [data-container="true"]') as HTMLElement;
+         // Include column containers as valid drop targets
+         const dropZone = target.closest('.drop-zone, [data-container="true"], [data-column-container="true"]') as HTMLElement;
          if (dropZone) {
             if (draggedComponent) {
                saveHistory();
