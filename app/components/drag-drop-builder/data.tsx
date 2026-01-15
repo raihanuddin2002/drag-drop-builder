@@ -273,7 +273,7 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             max-width: 100%;
         }
         [data-xpath]:not([data-container="true"]):not(.drop-zone):not([data-column-container="true"]):hover {
-            outline: 1px dashed #22c55e !important;
+            outline: 1px solid #22c55e !important;
             outline-offset: 2px;
         }
         /* Prevent hover outline on elements inside a selected column container */
@@ -296,7 +296,7 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             border-radius: 4px;
             padding: 4px;
             gap: 2px;
-            z-index: 1000;
+            z-index: 1001;
             white-space: nowrap;
         }
         [data-selected="true"] > .element-toolbar {
@@ -336,18 +336,19 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
 
         .drop-zone {
             min-height: 80px;
-            border: 1px dashed #cbd5e1;
+            border: 0.5px dashed #cbd5e1;
             padding: 10px;
             transition: all 0.2s;
             position: relative;
+            border-radius: 5px;
         }
         .drop-zone:hover {
-            border-color: #22c55e;
-            background: rgba(34, 197, 94, 0.05);
+            border:1px solid #22c55e;
         }
         .drop-zone.drag-over {
             border-color: #22c55e !important;
             background: rgba(34, 197, 94, 0.1) !important;
+            border: 1px dashed #cbd5e1;
         }
         .drop-indicator {
             height: 4px;
@@ -365,7 +366,7 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             position: relative;
         }
         [data-column-container="true"]:hover {
-            outline: 1px dashed #3b82f6;
+            outline: 1px solid #3b82f6;
             outline-offset: 4px;
         }
         [data-column-container="true"][data-selected="true"] {
@@ -379,7 +380,7 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             top: -36px !important;
             left: 10px !important;
             transform: none !important;
-            z-index: 1001 !important;
+            z-index: 1000 !important;
             flex-shrink: 0 !important;
         }
         [data-column-container="true"] > .column-toolbar {

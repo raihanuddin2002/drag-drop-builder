@@ -10,6 +10,7 @@ import {
    Redo2,
    Smartphone,
    Tablet,
+   Trash,
    Trash2,
    Undo2,
    Upload
@@ -238,10 +239,12 @@ export default function DragAndDropBuilder() {
       const userStyles = extractStyles(html);
 
       shadow.innerHTML = /*html*/`
-            <style>${userStyles}</style>
-            <style>${EDITOR_STYLES({ currentPageHeight: currentPage?.height })}</style>
-            <div class="shadow-root-container">${bodyContent}</div>
-        `;
+         <style>${userStyles}</style>
+         <style>
+            ${EDITOR_STYLES({ currentPageHeight: currentPage?.height })}
+         </style>
+         <div class="shadow-root-container">${bodyContent}</div>
+      `;
 
       const rootContainer = shadow.querySelector('.shadow-root-container');
       if (!rootContainer) return;
@@ -269,15 +272,12 @@ export default function DragAndDropBuilder() {
          });
       };
       normalizeForEditor(rootContainer as HTMLElement);
+
       // Add XPath data attributes and toolbar to all elements
       const addXPathData = (el: Element, root: HTMLElement): void => {
          if (el.nodeType !== 1) return;
          if (
-            el.tagName !== 'SCRIPT'
-            && el.tagName !== 'STYLE'
-            // && el.tagName !== "SPAN"
-            // && el.tagName !== "B"
-            // && el.tagName !== "I"
+            !NON_EDITABLE_TAGS.includes(el.tagName?.toUpperCase())
             && !el.classList.contains('shadow-root-container')
             && !el.classList.contains('element-toolbar')
          ) {
@@ -688,9 +688,11 @@ export default function DragAndDropBuilder() {
       const el = shadow.querySelector(`[data-xpath="${selectedXPath}"]`) as HTMLElement;
       if (el) {
          saveHistory();
+
          if (isHtml) {
             // For HTML blocks, update innerHTML
             el.innerHTML = value;
+
             // Re-add toolbar
             const toolbar = document.createElement('div');
             toolbar.className = 'element-toolbar';
@@ -777,6 +779,7 @@ export default function DragAndDropBuilder() {
       }
    };
 
+   // Rich editor
    const handleFormat = useCallback((command: string, value?: string) => {
       const shadow = shadowRootRef.current;
       if (!shadow) return;
@@ -882,29 +885,31 @@ export default function DragAndDropBuilder() {
             }
         `).join('\n');
 
-      const pagesHtml = pages.map((page, idx) => `
+      const pagesHtml = pages.map((page, idx) =>/* html */ `
             <div class="page-${idx + 1}" data-page-name="${page.name}">
                 ${cleanPageHtml(page.html)}
             </div>
         `).join('\n');
 
-      const fullHtml = /* html */`<!DOCTYPE html>
-                <html>
-                <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Exported Document</title>
-                <style>
-                * { box-sizing: border-box; }
-                body { margin: 0; padding: 20px; font-family: system-ui, sans-serif; background: #f5f5f5; }
-                ${pageStyles}
-                </style>
-                </head>
-                <body>
-                ${pagesHtml}
-                </body>
-                </html>
-            `;
+      const fullHtml = /* html */`
+      <!DOCTYPE html>
+         <html>
+            <head>
+               <meta charset="UTF-8">
+               <meta name="viewport" content="width=device-width, initial-scale=1.0">
+               <title>Exported Document</title>
+               <style>
+                  * { box-sizing: border-box; }
+                  body { margin: 0; padding: 20px; font-family: system-ui, sans-serif; background: #f5f5f5; }
+                  ${pageStyles}
+               </style>
+            </head>
+
+            <body>
+            ${pagesHtml}
+            </body>
+         </html>
+      `;
 
       const blob = new Blob([fullHtml], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
@@ -1055,11 +1060,10 @@ export default function DragAndDropBuilder() {
                         }
                         setIsPreviewMode(!isPreviewMode);
                      }}
-                     className={`flex items-center gap-2 px-4 py-2 rounded text-sm ${
-                        isPreviewMode
-                           ? 'bg-blue-500 text-white hover:bg-blue-600'
-                           : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                     }`}
+                     className={`flex items-center gap-2 px-4 py-2 rounded text-sm ${isPreviewMode
+                        ? 'bg-blue-500 text-white hover:bg-blue-600'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
                      title={isPreviewMode ? "Exit Preview" : "Preview Mode"}
                   >
                      <Eye size={16} />
@@ -1134,12 +1138,11 @@ export default function DragAndDropBuilder() {
                         {/* Page Canvas */}
                         <div
                            onClick={() => !isPreviewMode && currentPageIndex !== index && setCurrentPageIndex(index)}
-                           className={`bg-white shadow-lg rounded transition-all ${
-                              isPreviewMode
-                                 ? ''
-                                 : currentPageIndex === index
-                                    ? 'ring-2 ring-green-500 ring-offset-2'
-                                    : 'cursor-pointer hover:ring-2 hover:ring-gray-300 hover:ring-offset-2'
+                           className={`bg-white shadow-lg rounded transition-all ${isPreviewMode
+                              ? ''
+                              : currentPageIndex === index
+                                 ? 'ring-2 ring-green-500 ring-offset-2'
+                                 : 'cursor-pointer hover:ring-2 hover:ring-gray-300 hover:ring-offset-2'
                               }`}
                            style={{
                               width: page.width,
