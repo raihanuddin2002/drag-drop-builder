@@ -292,6 +292,7 @@ export default function DragAndDropBuilder() {
                // Add element toolbar
                const toolbar = document.createElement('div');
                toolbar.className = isColumnContainer ? 'element-toolbar column-toolbar' : 'element-toolbar';
+               toolbar.setAttribute('contenteditable', 'false'); // Prevent toolbar from inheriting contenteditable
                toolbar.innerHTML = /*html*/`
                         <button class="element-toolbar-btn" data-action="drag" title="Drag">
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>
@@ -433,6 +434,15 @@ export default function DragAndDropBuilder() {
 
       rootContainer.addEventListener('input', handleInput);
       rootContainer.addEventListener('focusout', handleBlur as EventListener);
+
+      // Prevent contenteditable from capturing mousedown on toolbar buttons (except drag button)
+      const actionBtns = shadow.querySelectorAll('.element-toolbar-btn[data-action="duplicate"], .element-toolbar-btn[data-action="delete"]');
+      actionBtns.forEach(btn => {
+         btn.addEventListener('mousedown', (e: Event) => {
+            e.preventDefault();
+            e.stopPropagation();
+         });
+      });
 
       // Setup drag buttons (dragstart/dragend)
       const allDragBtns = shadow.querySelectorAll('.element-toolbar-btn[data-action="drag"]');
@@ -696,6 +706,7 @@ export default function DragAndDropBuilder() {
             // Re-add toolbar
             const toolbar = document.createElement('div');
             toolbar.className = 'element-toolbar';
+            toolbar.setAttribute('contenteditable', 'false'); // Prevent toolbar from inheriting contenteditable
             toolbar.innerHTML = /* html */`
                     <button class="element-toolbar-btn" data-action="drag" title="Drag">
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>
