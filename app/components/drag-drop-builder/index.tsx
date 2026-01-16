@@ -728,15 +728,20 @@ export default function DragAndDropBuilder() {
       }
    };
 
-   const updateStyle = (prop: string, value: string): void => {
+   const updateStyle = (prop: string, value: string, livePreview?: boolean): void => {
       const shadow = shadowRootRef.current;
       if (!selectedXPath || !shadow) return;
 
       const el = shadow.querySelector(`[data-xpath="${selectedXPath}"]`) as HTMLElement;
       if (el) {
-         saveHistory();
+         if (!livePreview) {
+            saveHistory();
+         }
          (el.style as any)[prop] = value;
-         updateHtmlFromShadow();
+         // Skip HTML sync during live preview to avoid re-renders
+         if (!livePreview) {
+            updateHtmlFromShadow();
+         }
       }
    };
 
@@ -993,14 +998,17 @@ export default function DragAndDropBuilder() {
       const styles = parseStyles(customCss);
       const tag = el.tagName.toLowerCase();
       const content = el.textContent || '';
+
       // Get innerHTML without the toolbar
       const clone = el.cloneNode(true) as HTMLElement;
       clone.querySelectorAll('.element-toolbar').forEach(t => t.remove());
+
       const innerHTML = clone.innerHTML;
       const src = el.getAttribute('src') || '';
       const href = el.getAttribute('href') || '';
       const alt = el.getAttribute('alt') || '';
       const isHtmlBlock = el.hasAttribute('data-html-block');
+
       return { tag, styles, content, innerHTML, src, href, alt, isHtmlBlock, customCss };
    };
 
@@ -1248,10 +1256,15 @@ export default function DragAndDropBuilder() {
                {selectedXPath && elementInfo && (
                   <SettingsPanel
                      elementInfo={elementInfo}
+                     elementKey={selectedXPath}
                      onUpdateContent={updateContent}
                      onUpdateStyle={updateStyle}
                      onUpdateAttribute={updateAttribute}
                      onUpdateCustomCss={updateCustomCss}
+                     onCommitChanges={() => {
+                        saveHistory();
+                        updateHtmlFromShadow();
+                     }}
                      onDelete={deleteElement}
                      onDuplicate={duplicateElement}
                      onClose={() => {

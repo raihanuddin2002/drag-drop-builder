@@ -40,10 +40,12 @@ const parseColorToHex = (color: string): string => {
 
 interface SettingsPanelProps {
    elementInfo: ElementInfo | null;
+   elementKey: string; // Changes when different element is selected
    onUpdateContent: (value: string, isHtml?: boolean) => void;
-   onUpdateStyle: (prop: string, value: string) => void;
+   onUpdateStyle: (prop: string, value: string, livePreview?: boolean) => void;
    onUpdateAttribute: (attr: string, value: string) => void;
    onUpdateCustomCss: (css: string) => void;
+   onCommitChanges: () => void; // Save history and sync HTML after live preview
    onDelete: () => void;
    onDuplicate: () => void;
    onClose: () => void;
@@ -51,10 +53,12 @@ interface SettingsPanelProps {
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
    elementInfo,
+   elementKey,
    onUpdateContent,
    onUpdateStyle,
    onUpdateAttribute,
    onUpdateCustomCss,
+   onCommitChanges,
    onDelete,
    onDuplicate,
    onClose,
@@ -193,13 +197,15 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                      <div className="flex gap-2 items-center">
                         <input
                            type="color"
-                           value={colorHex}
-                           onChange={(e) => onUpdateStyle('color', hexToRgba(e.target.value, colorOpacity))}
+                           defaultValue={colorHex}
+                           key={`${elementKey}-color`}
+                           onChange={(e) => onUpdateStyle('color', hexToRgba(e.target.value, colorOpacity), true)}
+                           onBlur={() => onCommitChanges()}
                            className="w-10 h-8 border rounded cursor-pointer"
                         />
                         <StyleInput
                            value={colorHex}
-                           onChange={(v) => onUpdateStyle('color', hexToRgba(v.startsWith('#') ? v : `#${v}`, colorOpacity))}
+                           onBlur={(v) => onUpdateStyle('color', hexToRgba(v.startsWith('#') ? v : `#${v}`, colorOpacity))}
                            placeholder="#000000"
                            className="flex-1 px-2 py-1.5 border rounded text-sm font-mono"
                         />
@@ -224,13 +230,15 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                      <div className="flex gap-2 items-center">
                         <input
                            type="color"
-                           value={bgHex}
-                           onChange={(e) => onUpdateStyle('background', hexToRgba(e.target.value, bgOpacity))}
+                           defaultValue={bgHex}
+                           key={`${elementKey}-bg`}
+                           onChange={(e) => onUpdateStyle('background', hexToRgba(e.target.value, bgOpacity), true)}
+                           onBlur={() => onCommitChanges()}
                            className="w-10 h-8 border rounded cursor-pointer"
                         />
                         <StyleInput
                            value={bgHex}
-                           onChange={(v) => onUpdateStyle('background', hexToRgba(v.startsWith('#') ? v : `#${v}`, bgOpacity))}
+                           onBlur={(v) => onUpdateStyle('background', hexToRgba(v.startsWith('#') ? v : `#${v}`, bgOpacity))}
                            placeholder="#ffffff"
                            className="flex-1 px-2 py-1.5 border rounded text-sm font-mono"
                         />
