@@ -432,7 +432,44 @@ export default function DragAndDropBuilder() {
          }
       };
 
+      // Handle paste to strip inline styles from pasted content
+      const handlePaste = (e: ClipboardEvent) => {
+         const target = e.target as HTMLElement;
+         if (!target.hasAttribute('contenteditable')) return;
+
+         e.preventDefault();
+
+         // Get HTML content from clipboard, fallback to plain text
+         const html = e.clipboardData?.getData('text/html');
+         const plainText = e.clipboardData?.getData('text/plain') || '';
+
+         let contentToInsert = plainText;
+
+         if (html) {
+            // Parse and clean the HTML - remove inline styles
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+
+            // Remove style attributes from all elements
+            doc.body.querySelectorAll('*').forEach(el => {
+               el.removeAttribute('style');
+               // Also remove class attributes that might carry external styling
+               el.removeAttribute('class');
+            });
+
+            // Get cleaned text content (strip HTML tags for simpler insertion)
+            contentToInsert = doc.body.textContent || plainText;
+         }
+
+         // Use execCommand for reliable insertion in contenteditable (works in Shadow DOM)
+         document.execCommand('insertText', false, contentToInsert);
+
+         saveHistory();
+         updateHtmlFromShadow();
+      };
+
       rootContainer.addEventListener('input', handleInput);
+      rootContainer.addEventListener('paste', handlePaste as EventListener);
       rootContainer.addEventListener('focusout', handleBlur as EventListener);
 
       // Prevent contenteditable from capturing mousedown on toolbar buttons (except drag button)
@@ -668,6 +705,7 @@ export default function DragAndDropBuilder() {
       return () => {
          rootContainer.removeEventListener('click', handleClick);
          rootContainer.removeEventListener('input', handleInput);
+         rootContainer.removeEventListener('paste', handlePaste as EventListener);
          rootContainer.removeEventListener('focusout', handleBlur as EventListener);
          rootContainer.removeEventListener('dragover', handleDragOver);
          rootContainer.removeEventListener('dragleave', handleDragLeave);
