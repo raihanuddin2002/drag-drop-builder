@@ -1003,6 +1003,40 @@ export default function DragAndDropBuilder() {
          return;
       }
 
+      // Handle indent/outdent with margin instead of blockquote
+      if (command === 'indent' || command === 'outdent') {
+         const range = selection.getRangeAt(0);
+         let blockElement: HTMLElement | null = null;
+
+         // Find the parent block element
+         let node: Node | null = range.startContainer;
+         while (node) {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+               const el = node as HTMLElement;
+               const display = window.getComputedStyle(el).display;
+               if (display === 'block' || display === 'list-item' || el.tagName === 'P' || el.tagName === 'DIV' || el.tagName === 'LI') {
+                  blockElement = el;
+                  break;
+               }
+            }
+            if (node === shadow || !node.parentNode) break;
+            node = node.parentNode;
+         }
+
+         if (blockElement) {
+            saveHistory();
+            const currentMargin = parseInt(blockElement.style.marginLeft) || 0;
+            const step = 20; // 20px per indent level
+            if (command === 'indent') {
+               blockElement.style.marginLeft = `${currentMargin + step}px`;
+            } else {
+               blockElement.style.marginLeft = `${Math.max(0, currentMargin - step)}px`;
+            }
+            updateHtmlFromShadow();
+         }
+         return;
+      }
+
       // execCommand is deprecated but still works for rich text editing
       document.execCommand(command, false, value);
 
