@@ -21,11 +21,12 @@ import { ElementInfo } from "../type";
 
 export type RichTextToolbarProps = {
    onFormat: (command: string, value?: string) => void;
-   onUpdateStyle?: (prop: string, value: string) => void;
+   onUpdateStyle?: (prop: string, value: string, livePreview?: boolean) => void;
+   onCommitChanges?: () => void;
    elementInfo?: ElementInfo | null;
 }
 
-export default function RichTextToolbar({ onFormat, onUpdateStyle, elementInfo }: RichTextToolbarProps) {
+export default function RichTextToolbar({ onFormat, onUpdateStyle, onCommitChanges, elementInfo }: RichTextToolbarProps) {
    const [fontSize, setFontSize] = useState('16px');
    const [fontFamily, setFontFamily] = useState('Arial');
    const [fontColor, setFontColor] = useState('#000000');
@@ -221,12 +222,16 @@ export default function RichTextToolbar({ onFormat, onUpdateStyle, elementInfo }
             <input
                ref={colorInputRef}
                type="color"
-               value={fontColor}
+               defaultValue={fontColor}
+               key={fontColor}
                onChange={(e) => {
                   restoreSelection();
-                  setFontColor(e.target.value);
                   onFormat('foreColor', e.target.value);
-                  onUpdateStyle?.('color', e.target.value);
+                  onUpdateStyle?.('color', e.target.value, true);
+               }}
+               onBlur={(e) => {
+                  setFontColor(e.target.value);
+                  onCommitChanges?.();
                }}
                className="absolute opacity-0 w-0 h-0"
             />

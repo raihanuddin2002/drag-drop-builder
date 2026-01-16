@@ -1130,6 +1130,10 @@ export default function DragAndDropBuilder() {
                <RichTextToolbar
                   onFormat={handleFormat}
                   onUpdateStyle={updateStyle}
+                  onCommitChanges={() => {
+                     saveHistory();
+                     updateHtmlFromShadow();
+                  }}
                   elementInfo={elementInfo}
                />
             )}
