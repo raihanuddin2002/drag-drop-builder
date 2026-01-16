@@ -784,8 +784,13 @@ export default function DragAndDropBuilder() {
          if (links[index]) {
             saveHistory();
             const link = links[index];
-            const textNode = document.createTextNode(link.textContent || '');
-            link.parentNode?.replaceChild(textNode, link);
+            // Create a document fragment with the anchor's contents
+            const fragment = document.createDocumentFragment();
+            while (link.firstChild) {
+               fragment.appendChild(link.firstChild);
+            }
+            // Replace the anchor with its contents
+            link.parentNode?.replaceChild(fragment, link);
             updateHtmlFromShadow();
          }
       }
@@ -836,6 +841,68 @@ export default function DragAndDropBuilder() {
 
       // Get selection from shadow root or document
       const selection = (shadow as any).getSelection?.() ?? document.getSelection();
+
+      // For unlink, try to work even without selection by using the active element
+      if (command === 'unlink') {
+         let anchor: HTMLAnchorElement | null = null;
+
+         // First try to find anchor from selection
+         if (selection && selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            let node: Node | null = range.startContainer;
+
+            while (node) {
+               if (node.nodeType === Node.ELEMENT_NODE && (node as Element).tagName === 'A') {
+                  anchor = node as HTMLAnchorElement;
+                  break;
+               }
+               if (node === shadow || node === document.body || !node.parentNode) {
+                  break;
+               }
+               node = node.parentNode;
+            }
+
+            if (!anchor) {
+               node = range.commonAncestorContainer;
+               while (node) {
+                  if (node.nodeType === Node.ELEMENT_NODE && (node as Element).tagName === 'A') {
+                     anchor = node as HTMLAnchorElement;
+                     break;
+                  }
+                  if (node === shadow || node === document.body || !node.parentNode) {
+                     break;
+                  }
+                  node = node.parentNode;
+               }
+            }
+         }
+
+         // Fallback: try to find anchor from the currently selected element
+         if (!anchor && selectedXPath) {
+            const selectedEl = shadow.querySelector(`[data-xpath="${selectedXPath}"]`);
+            if (selectedEl) {
+               // Check if the selected element itself is an anchor
+               if (selectedEl.tagName === 'A') {
+                  anchor = selectedEl as HTMLAnchorElement;
+               } else {
+                  // Find the first anchor inside
+                  anchor = selectedEl.querySelector('a');
+               }
+            }
+         }
+
+         if (anchor) {
+            saveHistory();
+            const fragment = document.createDocumentFragment();
+            while (anchor.firstChild) {
+               fragment.appendChild(anchor.firstChild);
+            }
+            anchor.parentNode?.replaceChild(fragment, anchor);
+            updateHtmlFromShadow();
+         }
+         return;
+      }
+
       if (!selection || selection.rangeCount === 0) return;
 
       // Handle fontSize specially - execCommand expects 1-7, but we want px values
@@ -943,7 +1010,7 @@ export default function DragAndDropBuilder() {
       setTimeout(() => {
          updateHtmlFromShadow();
       }, 0);
-   }, [updateHtmlFromShadow, saveHistory]);
+   }, [updateHtmlFromShadow, saveHistory, selectedXPath]);
 
    // Clean page HTML for export (remove editor-specific attributes)
    const cleanPageHtml = (pageHtml: string): string => {
