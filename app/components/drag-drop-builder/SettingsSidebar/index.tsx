@@ -1,4 +1,4 @@
-import { ChevronRight, Copy, Trash2 } from "lucide-react";
+import { ChevronRight, Copy, Trash2, X } from "lucide-react";
 import { ElementInfo } from "../type";
 import { useState, useMemo } from "react";
 import { StyleInput } from "./StyleInput";
@@ -44,6 +44,8 @@ interface SettingsPanelProps {
    onUpdateContent: (value: string, isHtml?: boolean) => void;
    onUpdateStyle: (prop: string, value: string, livePreview?: boolean) => void;
    onUpdateAttribute: (attr: string, value: string) => void;
+   onUpdateInlineLink: (index: number, href: string) => void;
+   onRemoveInlineLink: (index: number) => void;
    onUpdateCustomCss: (css: string) => void;
    onCommitChanges: () => void; // Save history and sync HTML after live preview
    onDelete: () => void;
@@ -57,6 +59,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
    onUpdateContent,
    onUpdateStyle,
    onUpdateAttribute,
+   onUpdateInlineLink,
+   onRemoveInlineLink,
    onUpdateCustomCss,
    onCommitChanges,
    onDelete,
@@ -158,6 +162,38 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                            onChange={(e) => onUpdateAttribute('href', e.target.value)}
                            className="w-full px-3 py-2 border rounded-md text-sm"
                         />
+                     </div>
+                  )}
+
+                  {/* Inline Links */}
+                  {elementInfo.inlineLinks && elementInfo.inlineLinks.length > 0 && (
+                     <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Links in this element</label>
+                        <div className="space-y-3">
+                           {elementInfo.inlineLinks.map((link, idx) => (
+                              <div key={idx} className="bg-gray-50 p-3 rounded border">
+                                 <div className="flex items-center justify-between mb-1">
+                                    <div className="text-xs text-gray-500 truncate flex-1" title={link.text}>
+                                       &quot;{link.text}&quot;
+                                    </div>
+                                    <button
+                                       onClick={() => onRemoveInlineLink(link.index)}
+                                       className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded"
+                                       title="Remove link (keep text)"
+                                    >
+                                       <X size={14} />
+                                    </button>
+                                 </div>
+                                 <input
+                                    type="text"
+                                    value={link.href}
+                                    onChange={(e) => onUpdateInlineLink(link.index, e.target.value)}
+                                    placeholder="https://example.com"
+                                    className="w-full px-2 py-1.5 border rounded text-sm"
+                                 />
+                              </div>
+                           ))}
+                        </div>
                      </div>
                   )}
 

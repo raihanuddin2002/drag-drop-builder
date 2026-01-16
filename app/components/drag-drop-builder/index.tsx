@@ -757,6 +757,40 @@ export default function DragAndDropBuilder() {
       }
    };
 
+   const updateInlineLink = (index: number, href: string): void => {
+      const shadow = shadowRootRef.current;
+      if (!selectedXPath || !shadow) return;
+
+      const el = shadow.querySelector(`[data-xpath="${selectedXPath}"]`) as HTMLElement;
+      if (el) {
+         const links = el.querySelectorAll('a');
+         if (links[index]) {
+            saveHistory();
+            links[index].setAttribute('href', href);
+            links[index].setAttribute('target', '_blank');
+            links[index].setAttribute('rel', 'noopener noreferrer');
+            updateHtmlFromShadow();
+         }
+      }
+   };
+
+   const removeInlineLink = (index: number): void => {
+      const shadow = shadowRootRef.current;
+      if (!selectedXPath || !shadow) return;
+
+      const el = shadow.querySelector(`[data-xpath="${selectedXPath}"]`) as HTMLElement;
+      if (el) {
+         const links = el.querySelectorAll('a');
+         if (links[index]) {
+            saveHistory();
+            const link = links[index];
+            const textNode = document.createTextNode(link.textContent || '');
+            link.parentNode?.replaceChild(textNode, link);
+            updateHtmlFromShadow();
+         }
+      }
+   };
+
    const updateCustomCss = (css: string): void => {
       const shadow = shadowRootRef.current;
       if (!selectedXPath || !shadow) return;
@@ -864,6 +898,41 @@ export default function DragAndDropBuilder() {
       // Handle foreColor - skip execCommand, use style update instead
       if (command === 'foreColor') {
          // Color is handled via onUpdateStyle('color', ...) in RichTextToolbar
+         return;
+      }
+
+      // Handle createLink specially - add target="_blank" and styling
+      if (command === 'createLink' && value) {
+         const range = selection.getRangeAt(0);
+         if (!range.collapsed) {
+            const anchor = document.createElement('a');
+            anchor.href = value;
+            anchor.target = '_blank';
+            anchor.rel = 'noopener noreferrer';
+            anchor.style.color = '#2563eb';
+            anchor.style.textDecoration = 'underline';
+            try {
+               range.surroundContents(anchor);
+               saveHistory();
+               updateHtmlFromShadow();
+            } catch (e) {
+               // Fallback to execCommand if selection spans multiple elements
+               document.execCommand(command, false, value);
+               // Try to add target="_blank" to newly created links
+               const container = range.commonAncestorContainer;
+               const parent = container.nodeType === Node.TEXT_NODE ? container.parentElement : container as Element;
+               if (parent) {
+                  const links = parent.querySelectorAll('a[href="' + value + '"]:not([target])');
+                  links.forEach((link: Element) => {
+                     link.setAttribute('target', '_blank');
+                     link.setAttribute('rel', 'noopener noreferrer');
+                     (link as HTMLElement).style.color = '#2563eb';
+                     (link as HTMLElement).style.textDecoration = 'underline';
+                  });
+               }
+               updateHtmlFromShadow();
+            }
+         }
          return;
       }
 
@@ -1009,7 +1078,18 @@ export default function DragAndDropBuilder() {
       const alt = el.getAttribute('alt') || '';
       const isHtmlBlock = el.hasAttribute('data-html-block');
 
-      return { tag, styles, content, innerHTML, src, href, alt, isHtmlBlock, customCss };
+      // Extract inline links from the element
+      const inlineLinks: { href: string; text: string; index: number }[] = [];
+      const links = el.querySelectorAll('a');
+      links.forEach((link, index) => {
+         inlineLinks.push({
+            href: link.getAttribute('href') || '',
+            text: link.textContent || '',
+            index
+         });
+      });
+
+      return { tag, styles, content, innerHTML, src, href, alt, isHtmlBlock, customCss, inlineLinks };
    };
 
    const elementInfo = getElementInfo();
@@ -1264,6 +1344,8 @@ export default function DragAndDropBuilder() {
                      onUpdateContent={updateContent}
                      onUpdateStyle={updateStyle}
                      onUpdateAttribute={updateAttribute}
+                     onUpdateInlineLink={updateInlineLink}
+                     onRemoveInlineLink={removeInlineLink}
                      onUpdateCustomCss={updateCustomCss}
                      onCommitChanges={() => {
                         saveHistory();

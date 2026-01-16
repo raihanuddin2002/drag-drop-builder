@@ -7,6 +7,7 @@ import {
    Indent,
    Italic,
    Link,
+   Unlink,
    List,
    ListOrdered,
    Outdent,
@@ -135,14 +136,24 @@ export default function RichTextToolbar({ onFormat, onUpdateStyle, onCommitChang
          <div className="w-px h-6 bg-gray-300 mx-1" />
 
          <button
-            onClick={() => {
+            onMouseDown={(e) => {
+               e.preventDefault();
                const url = prompt('Enter URL:');
-               if (url) onFormat('createLink', url);
+               if (url) {
+                  onFormat('createLink', url);
+               }
             }}
             className="p-2 hover:bg-gray-100 rounded"
             title="Insert Link"
          >
             <Link size={16} />
+         </button>
+         <button
+            onMouseDown={(e) => handleMouseDown(e, 'unlink')}
+            className="p-2 hover:bg-gray-100 rounded"
+            title="Remove Link"
+         >
+            <Unlink size={16} />
          </button>
 
          <div className="w-px h-6 bg-gray-300 mx-1" />

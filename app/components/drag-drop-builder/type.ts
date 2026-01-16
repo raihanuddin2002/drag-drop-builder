@@ -6,6 +6,12 @@ export type ElementStyles = {
    [key: string]: string;
 }
 
+export type InlineLink = {
+   href: string;
+   text: string;
+   index: number;
+}
+
 export type ElementInfo = {
    tag: string;
    styles: ElementStyles;
@@ -16,6 +22,7 @@ export type ElementInfo = {
    alt: string;
    isHtmlBlock: boolean;
    customCss: string;
+   inlineLinks?: InlineLink[];
 }
 
 export type Component = {
