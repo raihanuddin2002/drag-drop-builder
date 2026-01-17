@@ -165,8 +165,8 @@ export default function DragAndDropBuilder() {
       const pageGap = 40;
       const pagePadding = 40;
 
-      // TODO: Need to change here. Needs to introduce unit
-      const usablePageHeight = pageHeight - (pagePadding * 2); // Content area per page
+      // Content area per page (minus padding top and padding bottom)
+      const usablePageHeight = pageHeight - (pagePadding * 2);
 
       // Remove existing page break spacers
       shadow.querySelectorAll('.page-break-spacer').forEach(el => el.remove());
@@ -219,12 +219,12 @@ export default function DragAndDropBuilder() {
 
             if (breakBeforeElement) {
                // Calculate how much space is left on the current page
-               const originalTop = breakBeforeElement.offsetTop - cumulativeSpacerHeight;
-               const spaceUsedOnPage = originalTop - ((pageNum - 1) * usablePageHeight);
-               const remainingSpace = usablePageHeight - spaceUsedOnPage;
+               // const originalTop = breakBeforeElement.offsetTop - cumulativeSpacerHeight;
+               // const spaceUsedOnPage = originalTop - ((pageNum - 1) * usablePageHeight);
+               // const remainingSpace = usablePageHeight - spaceUsedOnPage;
 
                // Spacer height = remaining space to fill current page + gap between pages
-               const spacerHeight = Math.max(0, remainingSpace) + pageGap;
+               // const spacerHeight = Math.max(0, remainingSpace) + pageGap;
 
                const spacer = window.document.createElement('div');
                spacer.className = 'page-break-spacer';
@@ -239,51 +239,21 @@ export default function DragAndDropBuilder() {
                      height: 100%;
                      position: relative;
                   ">
+                    
                      <div style="
-                        position: absolute;
-                        top: 0;
-                        left: 0;
-                        right: 0;
-                        height: 20px;
-                        display: flex;
-                        justify-content: center;
-                        align-items: center;
-                        font-size: 10px;
-                        color: #9ca3af;
-                     ">Page ${pageNum}</div>
-                     <div style="
-                        background: #d1d5db;
                         padding: 4px 20px;
                         border-radius: 12px;
                         font-size: 11px;
                         color: #6b7280;
-                     ">Page ${pageNum} → ${pageNum + 1}</div>
-                     <div style="
-                        position: absolute;
-                        bottom: 0;
-                        left: 0;
-                        right: 0;
-                        height: 20px;
-                        display: flex;
-                        justify-content: center;
-                        align-items: center;
-                        font-size: 10px;
-                        color: #9ca3af;
-                     ">Page ${pageNum + 1}</div>
+                     ">
+                        Page ${pageNum + 1}
+                     </div>
+                    
                   </div>
                `;
 
                spacer.style.cssText = /*css */`
-                  height: ${spacerHeight}px;
-                  background: linear-gradient(to bottom,
-                     white 0%,
-                     white 20px,
-                     #e5e7eb 20px,
-                     #e5e7eb calc(100% - 20px),
-                     white calc(100% - 20px),
-                     white 100%
-                  );
-                  margin: 0 -${pagePadding}px;
+                  margin: ${pageGap}px -${pagePadding}px;
                   padding: 0 ${pagePadding}px;
                   position: relative;
                   pointer-events: none;
@@ -292,7 +262,7 @@ export default function DragAndDropBuilder() {
                `;
 
                breakBeforeElement.parentNode?.insertBefore(spacer, breakBeforeElement);
-               cumulativeSpacerHeight += spacerHeight;
+               // cumulativeSpacerHeight += spacerHeight;
             }
          }
       }
@@ -300,8 +270,9 @@ export default function DragAndDropBuilder() {
       // Update container height to show full pages
       // Total height = (number of pages × page height) + (gaps between pages)
       const totalContainerHeight = (totalPages * pageHeight) + ((totalPages - 1) * pageGap);
-      pagesContainer.style.minHeight = `${totalContainerHeight}px`;
-      contentFlow.style.minHeight = `${totalContainerHeight - (pagePadding * 2)}px`;
+      // console.log(totalContainerHeight)
+      pagesContainer.style.height = `${totalContainerHeight}px`;
+      contentFlow.style.height = `${totalContainerHeight - (pagePadding * 2)}px`;
 
       // Update page count display
       const pageIndicator = shadow.querySelector('.page-count');
@@ -728,6 +699,7 @@ export default function DragAndDropBuilder() {
          if (dropIndicator) {
             saveHistory();
 
+            // elements block
             if (draggedComponent) {
                dropIndicator.insertAdjacentHTML('beforebegin', draggedComponent.html);
                dropIndicator.remove();
@@ -736,18 +708,29 @@ export default function DragAndDropBuilder() {
                requestAnimationFrame(calculatePageBreaks);
                return;
             } else if (dragged) {
+               // reordering elements
                dropIndicator.parentNode?.insertBefore(dragged, dropIndicator);
                dropIndicator.remove();
                dragged.classList.remove('dragging');
                draggedElementRef.current = null;
 
-               // Recalculate XPath for the moved element to update selection
-               const container = shadow.querySelector('.shadow-root-container') as HTMLElement;
+               // Recalculate XPath for the moved element and siblings to update selection
+               const container = shadow.querySelector('.content-flow') as HTMLElement;
 
                if (container) {
+                  // // Update XPath for all siblings to avoid conflicts
+                  // const parent = dragged.parentElement;
+                  // if (parent) {
+                  //    Array.from(parent.children).forEach(child => {
+                  //       if (child.hasAttribute('data-xpath')) {
+                  //          const xpath = generateXPath(child as HTMLElement, container);
+                  //          child.setAttribute('data-xpath', xpath);
+                  //       }
+                  //    });
+                  // }
                   const newXPath = generateXPath(dragged, container);
                   setSelectedXPath(newXPath);
-                  // setSelectedElement(dragged);
+                  setSelectedElement(dragged);
                }
 
                updateContentFromShadow();
@@ -758,7 +741,7 @@ export default function DragAndDropBuilder() {
 
          shadow.querySelectorAll('.drop-indicator').forEach(ind => ind.remove());
 
-         // 
+         // Containers
          const dropZone = target.closest('.drop-zone, [data-container="true"]') as HTMLElement;
 
          if (dropZone) {
@@ -775,12 +758,22 @@ export default function DragAndDropBuilder() {
                dragged.classList.remove('dragging');
                draggedElementRef.current = null;
 
-               const container = shadow.querySelector('.shadow-root-container') as HTMLElement;
+               const container = shadow.querySelector('.content-flow') as HTMLElement;
 
                if (container) {
+                  // Update XPath for all siblings to avoid conflicts
+                  // const parent = dragged.parentElement;
+                  // if (parent) {
+                  //    Array.from(parent.children).forEach(child => {
+                  //       if (child.hasAttribute('data-xpath')) {
+                  //          const xpath = generateXPath(child as HTMLElement, container);
+                  //          child.setAttribute('data-xpath', xpath);
+                  //       }
+                  //    });
+                  // }
                   const newXPath = generateXPath(dragged, container);
                   setSelectedXPath(newXPath);
-                  // setSelectedElement(dragged);
+                  setSelectedElement(dragged);
                }
 
                updateContentFromShadow();
