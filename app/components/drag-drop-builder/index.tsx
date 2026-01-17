@@ -151,128 +151,124 @@ export default function DragAndDropBuilder() {
       setDocument(prev => ({ ...prev, content: clone.outerHTML }));
    }, []);
 
-   // Calculate and display page breaks visually with separated pages (MS Word style)
+   // Calculate and display page breaks visually using overlay + margin approach
    const calculatePageBreaks = useCallback(() => {
       const shadow = shadowRootRef.current;
       if (!shadow) return;
 
       const pagesContainer = shadow.querySelector('.pages-container') as HTMLElement;
       const contentFlow = shadow.querySelector('.content-flow') as HTMLElement;
+      const pageOverlay = shadow.querySelector('.page-overlay') as HTMLElement;
 
-      if (!pagesContainer || !contentFlow || document?.pageHeight?.unit === 'vh') return;
+      if (!pagesContainer || !contentFlow || !pageOverlay) return;
+      if (document?.pageHeight?.unit === 'vh') return;
 
       const pageHeight = document.pageHeight?.value;
-      const pageGap = 40;
       const pagePadding = 40;
+      const pageGap = 40;
 
       // Content area per page (minus padding top and padding bottom)
       const usablePageHeight = pageHeight - (pagePadding * 2);
 
-      // Remove existing page break spacers
-      shadow.querySelectorAll('.page-break-spacer').forEach(el => el.remove());
+      // Clear existing overlays and reset margins
+      pageOverlay.innerHTML = '';
+      contentFlow.querySelectorAll('[data-xpath]').forEach(el => {
+         (el as HTMLElement).style.removeProperty('margin-top');
+         (el as HTMLElement).removeAttribute('data-page-break-before');
+      });
 
-      // Force reflow to get accurate measurements
-      void contentFlow.offsetHeight;
+      // Get content elements
+      const getBlocks = () => {
+         const contentRect = contentFlow.getBoundingClientRect();
+         return Array.from(contentFlow.children)
+            .filter(el => el.hasAttribute('data-xpath'))
+            .map(el => {
+               const rect = el.getBoundingClientRect();
+               return {
+                  el: el as HTMLElement,
+                  top: rect.top - contentRect.top,
+                  height: rect.height,
+                  bottom: rect.top - contentRect.top + rect.height
+               };
+            });
+      };
 
-      // Get all direct children of content flow (actual content elements, excluding spacers)
-      const getContentElements = () => Array.from(contentFlow.children).filter(
-         el => el.hasAttribute('data-xpath') && !el.classList.contains('page-break-spacer')
-      ) as HTMLElement[];
-
-      let contentElements = getContentElements();
-
-      // Calculate total content height
+      // First pass: calculate content height without gaps
+      let blocks = getBlocks();
       let contentHeight = 0;
-      if (contentElements.length > 0) {
-         const lastEl = contentElements[contentElements.length - 1];
-         contentHeight = lastEl.offsetTop + lastEl.offsetHeight;
+      if (blocks.length > 0) {
+         const lastBlock = blocks[blocks.length - 1];
+         contentHeight = lastBlock.bottom;
       }
 
       // Calculate number of pages needed
       const totalPages = Math.max(1, Math.ceil(contentHeight / usablePageHeight));
       setPageCount(totalPages);
 
-      // Insert page break spacers between pages
+      // Add margins to elements at page breaks to push content down
       if (totalPages > 1) {
-         let cumulativeSpacerHeight = 0;
+         let cumulativeOffset = 0;
 
          for (let pageNum = 1; pageNum < totalPages; pageNum++) {
-            // Recalculate positions after each spacer insertion
-            contentElements = getContentElements();
+            // Recalculate blocks after each margin addition
+            blocks = getBlocks();
 
-            // Where this page break should occur in original content coordinates
-            const breakPointInContent = pageNum * usablePageHeight;
+            // Where this page break should occur (accounting for previous gaps)
+            const breakPoint = (pageNum * usablePageHeight) + (cumulativeOffset);
 
-            // Find the element that crosses this boundary (accounting for previous spacers)
-            let breakBeforeElement: HTMLElement | null = null;
+            // Find the first element that crosses or starts after the break point
+            let breakElement: HTMLElement | null = null;
 
-            for (const element of contentElements) {
-               // Subtract cumulative spacer height to get original position
-               const originalTop = element.offsetTop - cumulativeSpacerHeight;
-               const originalBottom = originalTop + element.offsetHeight;
-
-               if (originalBottom > breakPointInContent) {
-                  breakBeforeElement = element;
+            for (const block of blocks) {
+               // If element starts after break point or crosses it, this is where we break
+               if (block.top >= breakPoint || (block.top < breakPoint && block.bottom > breakPoint)) {
+                  breakElement = block.el;
                   break;
                }
             }
 
-            if (breakBeforeElement) {
-               // Calculate how much space is left on the current page
-               // const originalTop = breakBeforeElement.offsetTop - cumulativeSpacerHeight;
-               // const spaceUsedOnPage = originalTop - ((pageNum - 1) * usablePageHeight);
-               // const remainingSpace = usablePageHeight - spaceUsedOnPage;
+            if (breakElement && !breakElement.hasAttribute('data-page-break-before')) {
+               // Calculate how much to push down
+               const blockRect = breakElement.getBoundingClientRect();
+               const contentRect = contentFlow.getBoundingClientRect();
+               const currentTop = blockRect.top - contentRect.top;
+               const targetTop = breakPoint + pageGap;
+               const marginNeeded = targetTop - currentTop;
 
-               // Spacer height = remaining space to fill current page + gap between pages
-               // const spacerHeight = Math.max(0, remainingSpace) + pageGap;
-
-               const spacer = window.document.createElement('div');
-               spacer.className = 'page-break-spacer';
-               spacer.setAttribute('data-page-break', String(pageNum));
-
-               // Create the visual page break with page numbers
-               spacer.innerHTML = /* html */`
-                  <div style="
-                     display: flex;
-                     align-items: center;
-                     justify-content: center;
-                     height: 100%;
-                     position: relative;
-                  ">
-                    
-                     <div style="
-                        padding: 4px 20px;
-                        border-radius: 12px;
-                        font-size: 11px;
-                        color: #6b7280;
-                     ">
-                        Page ${pageNum + 1}
-                     </div>
-                    
-                  </div>
-               `;
-
-               spacer.style.cssText = /*css */`
-                  margin: ${pageGap}px -${pagePadding}px;
-                  padding: 0 ${pagePadding}px;
-                  position: relative;
-                  pointer-events: none;
-                  box-shadow: inset 0 20px 20px -20px rgba(0,0,0,0.1),
-                              inset 0 -20px 20px -20px rgba(0,0,0,0.1);
-               `;
-
-               breakBeforeElement.parentNode?.insertBefore(spacer, breakBeforeElement);
-               // cumulativeSpacerHeight += spacerHeight;
+               if (marginNeeded > 0) {
+                  const existingMargin = parseFloat(window.getComputedStyle(breakElement).marginTop) || 0;
+                  breakElement.style.marginTop = `${existingMargin + marginNeeded}px`;
+                  breakElement.setAttribute('data-page-break-before', String(pageNum));
+                  cumulativeOffset += pageGap;
+               }
             }
          }
       }
 
-      // Update container height to show full pages
-      // Total height = (number of pages × page height) + (gaps between pages)
+      // Render page break indicators in overlay
+      if (totalPages > 1) {
+         for (let i = 1; i < totalPages; i++) {
+            // Position at the actual page break location
+            const breakPosition = (i * usablePageHeight) + ((i - 1) * pageGap);
+
+            const pageGapDiv = window.document.createElement('div');
+            pageGapDiv.className = 'page-gap';
+            pageGapDiv.style.top = `${breakPosition}px`;
+            pageGapDiv.style.height = `${pageGap}px`;
+
+            const gapLabel = window.document.createElement('div');
+            gapLabel.className = 'page-gap-label';
+            gapLabel.textContent = `Page ${i} → ${i + 1}`;
+            pageGapDiv.appendChild(gapLabel);
+
+            pageOverlay.appendChild(pageGapDiv);
+         }
+      }
+
+      // Update container heights
       const totalContainerHeight = (totalPages * pageHeight) + ((totalPages - 1) * pageGap);
-      // console.log(totalContainerHeight)
-      pagesContainer.style.height = `${totalContainerHeight}px`;
-      contentFlow.style.height = `${totalContainerHeight - (pagePadding * 2)}px`;
+      pagesContainer.style.minHeight = `${totalContainerHeight}px`;
+      contentFlow.style.minHeight = `${totalContainerHeight - (pagePadding * 2)}px`;
 
       // Update page count display
       const pageIndicator = shadow.querySelector('.page-count');
@@ -288,7 +284,6 @@ export default function DragAndDropBuilder() {
       const shadow = shadowRootRef.current;
       if (!shadow) return;
 
-      const pageGap = 40;
       const pagePadding = 40;
 
       const EditorStyles = EDITOR_STYLES({
@@ -355,10 +350,59 @@ export default function DragAndDropBuilder() {
                display: block;
             }
 
-            /* Page break spacer - visual separation between pages */
-            .page-break-spacer {
-               position: relative;
+            /* Page overlay system - visual page indicators without DOM mutation */
+            .page-overlay {
+               position: absolute;
+               top: 0;
+               left: 0;
+               right: 0;
+               bottom: 0;
                pointer-events: none;
+               z-index: 0;
+            }
+
+            .page-overlay .page {
+               position: absolute;
+               left: 0;
+               right: 0;
+               background: transparent;
+               border-bottom: 1px dashed #e5e7eb;
+            }
+
+            .page-overlay .page-label {
+               position: absolute;
+               bottom: -12px;
+               left: 50%;
+               transform: translateX(-50%);
+               font-size: 10px;
+               color: #9ca3af;
+               background: #f3f4f6;
+               padding: 2px 12px;
+               border-radius: 999px;
+               white-space: nowrap;
+            }
+
+            .page-overlay .page-gap {
+               position: absolute;
+               left: -${pagePadding}px;
+               right: -${pagePadding}px;
+               background: linear-gradient(to bottom,
+                  rgba(229, 231, 235, 0.5) 0%,
+                  #e5e7eb 50%,
+                  rgba(229, 231, 235, 0.5) 100%
+               );
+               display: flex;
+               align-items: center;
+               justify-content: center;
+            }
+
+            .page-overlay .page-gap-label {
+               font-size: 11px;
+               color: #6b7280;
+               background: white;
+               padding: 4px 16px;
+               border-radius: 12px;
+               box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             }
          </style>
          <div class="pages-wrapper">
@@ -368,6 +412,7 @@ export default function DragAndDropBuilder() {
                <span class="page-count" style="color: #22c55e; font-weight: 500;">1 page</span>
             </div>
             <div class="pages-container">
+               <div class="page-overlay"></div>
                ${document.content}
             </div>
          </div>
