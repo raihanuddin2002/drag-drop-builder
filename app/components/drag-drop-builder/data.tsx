@@ -10,28 +10,33 @@ export const RICH_TOOLBAR_FONT_SIZES = ['8px', '10px', '12px', '14px', '16px', '
 // ============================================
 // INITIAL HTML
 // ============================================
-export const INITIAL_PAGE_HTML =/* html */ `
-   <div
-      class="page-container"
-      data-container="true"
-      style="width: 100%; height: 100%; padding: 20px; background: white; border: 2px dashed #cbd5e1; border-radius: 4px;"
-   >
-   </div>
-`;
+export const INITIAL_PAGE_HTML = (currentPage: Record<string, any>) => {
+   const currentPageHeight = currentPage?.height?.value ? `${currentPage?.height?.value}${currentPage?.height?.unit}` : "100%"
+   const style = `width: 100%; height: ${currentPageHeight}; padding: 20px; background: white; border: 2px dashed #cbd5e1; border-radius: 4px;`
+
+   return /* html */ `
+      <div
+         class="page-container"
+         data-container="true"
+         style=${style}
+      >
+      </div>
+`
+};
 
 // ============================================
 // PAGE PRESETS
 // ============================================
 export const PAGE_PRESETS: PagePreset[] = [
-   { name: 'Custom', width: 800, height: 600 },
-   { name: 'Letter (8.5" x 11")', width: 816, height: 1056 },
-   { name: 'Legal (8.5" x 14")', width: 816, height: 1344 },
-   { name: 'A4', width: 794, height: 1123 },
-   { name: 'Tabloid (11" x 17")', width: 1056, height: 1632 },
-   { name: 'Instagram Post', width: 1080, height: 1080 },
-   { name: 'Instagram Story', width: 1080, height: 1920 },
-   { name: 'Facebook Cover', width: 820, height: 312 },
-   { name: 'Presentation (16:9)', width: 1920, height: 1080 },
+   { name: 'Full Size', width: { value: 100, unit: '%' }, height: { value: 100, unit: 'vh' } },
+   { name: 'Letter (8.5" x 11")', width: { value: 816, unit: 'px' }, height: { value: 1056, unit: 'px' } },
+   { name: 'Legal (8.5" x 14")', width: { value: 816, unit: 'px' }, height: { value: 1344, unit: 'px' } },
+   { name: 'A4', width: { value: 794, unit: 'px' }, height: { value: 1123, unit: 'px' } },
+   { name: 'Tabloid (11" x 17")', width: { value: 1056, unit: 'px' }, height: { value: 1632, unit: 'px' } },
+   { name: 'Instagram Post', width: { value: 1080, unit: 'px' }, height: { value: 1080, unit: 'px' } },
+   { name: 'Instagram Story', width: { value: 1080, unit: 'px' }, height: { value: 1920, unit: 'px' } },
+   { name: 'Facebook Cover', width: { value: 820, unit: 'px' }, height: { value: 312, unit: 'px' } },
+   { name: 'Presentation (16:9)', width: { value: 1920, unit: 'px' }, height: { value: 1080, unit: 'px' } },
 ];
 
 // Helper to wrap page content in full HTML document for export
@@ -52,8 +57,8 @@ export const wrapPageInDocument = (page: Page, styles: string = ''): string => /
                   background: #f5f5f5; 
                }
                .page-container {
-                  width: ${page.width}px;
-                  min-height: ${page.height}px;
+                  width: ${page.width.value}${page.width.unit};
+                  min-height: ${page.height.value}${page.height.unit};
                   margin: 0 auto;
                   background: white;
                }
@@ -244,7 +249,7 @@ export const CONTAINER_LAYOUTS: Component[] = [
 // EDITOR STYLES (injected into shadow DOM)
 // ============================================
 export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
-   const dropZoneOfPageHeight = data?.currentPageHeight ? `${data?.currentPageHeight}px` : '100%';
+   const dropZoneOfPageHeight = data?.currentPageHeight?.value ? `${data?.currentPageHeight?.value}${data?.currentPageHeight?.unit}` : '100%';
 
    return  /* css */`
         /* Global box-sizing and overflow control */
@@ -265,6 +270,12 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
         img {
             max-width: 100%;
             height: auto;
+        }
+
+        /* Ensure text content wraps properly */
+        p, h1, h2, h3, h4, h5, h6, div, span, a {
+            word-wrap: break-word;
+            overflow-wrap: break-word;
         }
 
         [data-xpath]:not([data-container="true"]):not(.drop-zone):not([data-column-container="true"]) {
@@ -389,6 +400,27 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
         [data-column-container="true"]:hover > .column-toolbar,
         [data-column-container="true"][data-selected="true"] > .column-toolbar {
             display: flex !important;
+        }
+
+        /* Overflow warning indicator for oversized elements */
+        [data-overflow-warning="true"] {
+            outline: 2px dashed #f59e0b !important;
+            outline-offset: 2px;
+            position: relative;
+        }
+        [data-overflow-warning="true"]::after {
+            content: "Element exceeds page height";
+            position: absolute;
+            bottom: -24px;
+            left: 0;
+            font-size: 11px;
+            color: #f59e0b;
+            background: white;
+            padding: 2px 8px;
+            border-radius: 3px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            white-space: nowrap;
+            z-index: 1000;
         }
     `
 }

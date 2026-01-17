@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { PAGE_PRESETS } from "./data";
-import { Page, PagePreset } from "./type";
+import { Height, Page, PagePreset, Width } from "./type";
 import { ArrowLeftRight, ChevronDown, FileText } from "lucide-react";
 
 export type PageSizeSettingsProps = {
    currentPage: Page;
-   onChangeSize: (width: number, height: number) => void;
+   onChangeSize: ({ width, height }: { width: Width; height: Height }) => void;
 }
 
 export const PageSizeSettings: React.FC<PageSizeSettingsProps> = ({
@@ -13,41 +13,51 @@ export const PageSizeSettings: React.FC<PageSizeSettingsProps> = ({
    onChangeSize,
 }) => {
    const [isOpen, setIsOpen] = useState(false);
-   const [customWidth, setCustomWidth] = useState(currentPage.width.toString());
-   const [customHeight, setCustomHeight] = useState(currentPage.height.toString());
+   const [customWidth, setCustomWidth] = useState<Width>({ value: 100, unit: '%' });
+   const [customHeight, setCustomHeight] = useState<Height>({ value: 100, unit: 'vh' });
 
    // Update local state when current page changes
    useEffect(() => {
-      setCustomWidth(currentPage.width.toString());
-      setCustomHeight(currentPage.height.toString());
+      setCustomWidth({ value: currentPage.width.value, unit: currentPage.width.unit });
+      setCustomHeight({ value: currentPage.height.value, unit: currentPage.height.unit });
    }, [currentPage.width, currentPage.height]);
 
    const getCurrentPresetName = () => {
       const preset = PAGE_PRESETS.find(
-         p => p.width === currentPage.width && p.height === currentPage.height
+         p => p.width.value === currentPage.width?.value && p.height?.value === currentPage.height?.value
       );
       return preset?.name ?? 'Custom';
    };
 
    const handlePresetSelect = (preset: PagePreset) => {
-      onChangeSize(preset.width, preset.height);
-      setCustomWidth(preset.width.toString());
-      setCustomHeight(preset.height.toString());
+      onChangeSize({
+         width: { value: preset.width.value, unit: preset.width.unit },
+         height: { value: preset.height.value, unit: preset.height.unit }
+      });
+      setCustomWidth({ value: preset.width?.value, unit: preset.width.unit });
+      setCustomHeight({ value: preset.height.value, unit: preset.height.unit });
       if (preset.name !== 'Custom') {
          setIsOpen(false);
       }
    };
 
    const handleCustomSizeApply = () => {
-      const w = parseInt(customWidth) || 800;
-      const h = parseInt(customHeight) || 600;
-      onChangeSize(w, h);
+      const w = customWidth.value || 800;
+      const h = customHeight.value || 600;
+
+      onChangeSize({
+         width: { value: w, unit: customWidth.unit },
+         height: { value: h, unit: customHeight.unit }
+      });
    };
 
    const handleSwapDimensions = () => {
-      onChangeSize(currentPage.height, currentPage.width);
-      setCustomWidth(currentPage.height.toString());
-      setCustomHeight(currentPage.width.toString());
+      onChangeSize({
+         width: { value: currentPage.height.value, unit: currentPage.height.unit },
+         height: { value: currentPage.width.value, unit: currentPage.width.unit }
+      });
+      setCustomWidth({ value: currentPage.height.value, unit: currentPage.height.unit });
+      setCustomHeight({ value: currentPage.width.value, unit: currentPage.width.unit });
    };
 
    return (
@@ -59,7 +69,7 @@ export const PageSizeSettings: React.FC<PageSizeSettingsProps> = ({
             <FileText size={16} />
             <span>{getCurrentPresetName()}</span>
             <span className="text-xs text-gray-400">
-               {currentPage.width} x {currentPage.height}
+               {currentPage.width.value} x {currentPage.height.value}
             </span>
             <ChevronDown size={14} />
          </button>
@@ -78,14 +88,14 @@ export const PageSizeSettings: React.FC<PageSizeSettingsProps> = ({
                         <button
                            key={preset.name}
                            onClick={() => handlePresetSelect(preset)}
-                           className={`w-full px-2 py-2 text-left text-sm rounded hover:bg-gray-100 flex items-center justify-between ${currentPage.width === preset.width && currentPage.height === preset.height
+                           className={`w-full px-2 py-2 text-left text-sm rounded hover:bg-gray-100 flex items-center justify-between ${currentPage.width.value === preset.width.value && currentPage.height.value === preset.height.value
                               ? 'bg-green-50 text-green-700'
                               : 'text-gray-700'
                               }`}
                         >
                            <span>{preset.name}</span>
                            <span className="text-xs text-gray-400">
-                              {preset.width} x {preset.height}
+                              {preset.width.value}{preset.width.unit} x {preset.height.value}{preset.height.unit}
                            </span>
                         </button>
                      ))}
@@ -99,8 +109,8 @@ export const PageSizeSettings: React.FC<PageSizeSettingsProps> = ({
                            <label className="text-xs text-gray-500">Width</label>
                            <input
                               type="number"
-                              value={customWidth}
-                              onChange={(e) => setCustomWidth(e.target.value)}
+                              value={customWidth.value}
+                              onChange={(e) => setCustomWidth({ value: parseInt(e.target.value || "0"), unit: "px" })}
                               className="w-full px-2 py-1 border rounded text-sm"
                               min="100"
                               max="5000"
@@ -117,8 +127,8 @@ export const PageSizeSettings: React.FC<PageSizeSettingsProps> = ({
                            <label className="text-xs text-gray-500">Height</label>
                            <input
                               type="number"
-                              value={customHeight}
-                              onChange={(e) => setCustomHeight(e.target.value)}
+                              value={customHeight.value}
+                              onChange={(e) => setCustomHeight({ value: parseInt(e.target.value || "0"), unit: "px" })}
                               className="w-full px-2 py-1 border rounded text-sm"
                               min="100"
                               max="5000"

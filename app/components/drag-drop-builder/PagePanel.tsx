@@ -66,7 +66,7 @@ export const PagePanel: React.FC<PagePanelProps> = ({
                      <div
                         className="w-full h-full flex items-center justify-center text-gray-400"
                         style={{
-                           transform: `scale(${Math.min(80 / page.width, 60 / page.height)})`,
+                           transform: `scale(${Math.min(80 / page.width.value, 60 / page.height.value)})`,
                            transformOrigin: 'center center',
                         }}
                      >

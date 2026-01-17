@@ -6,9 +6,14 @@ export const generatePageId = (): string => `page-${Date.now()}-${Math.random().
 export const createDefaultPage = (name: string = 'Page 1', preset?: PagePreset): Page => ({
    id: generatePageId(),
    name,
-   width: preset?.width ?? 800,
-   height: preset?.height ?? 600,
-   html: INITIAL_PAGE_HTML,
+   width: { value: preset?.width?.value ?? 800, unit: preset?.width?.unit ?? 'px' },
+   height: { value: preset?.height?.value ?? 600, unit: preset?.height?.unit ?? 'px' },
+   html: INITIAL_PAGE_HTML({
+      height: {
+         value: preset?.height?.value ?? 600,
+         unit: preset?.height?.unit ?? 'px'
+      }
+   })
 });
 
 export const generateXPath = (el: HTMLElement, root: HTMLElement): string => {
@@ -51,4 +56,158 @@ export const isEditableElement = (el: HTMLElement): boolean => {
    if (el.hasAttribute('data-html-block')) return false;
    if (el.hasAttribute('data-element-type') && el.getAttribute('data-element-type') === 'spacer') return false;
    return true;
+};
+
+// ============================================
+// AUTO-PAGINATION UTILITIES
+// ============================================
+
+/**
+ * Detect elements that overflow the page height
+ * Uses offsetTop/offsetHeight for accurate measurement regardless of scroll position
+ */
+export const detectOverflow = (shadowRoot: ShadowRoot, pageHeight: number): HTMLElement[] => {
+   const container = shadowRoot.querySelector('.page-container') as HTMLElement;
+   if (!container) return [];
+
+   // Account for container padding (typically 20px top + 20px bottom)
+   const containerStyle = window.getComputedStyle(container);
+   const paddingTop = parseFloat(containerStyle.paddingTop) || 0;
+   const paddingBottom = parseFloat(containerStyle.paddingBottom) || 0;
+   const availableHeight = pageHeight - paddingTop - paddingBottom;
+
+   // Get direct children that are content elements (not toolbars)
+   const children = Array.from(container.children).filter(child => {
+      const el = child as HTMLElement;
+      return el.hasAttribute('data-xpath') && !el.classList.contains('element-toolbar');
+   }) as HTMLElement[];
+
+   const overflowing: HTMLElement[] = [];
+
+   for (const child of children) {
+      // Calculate position relative to container using offsetTop
+      const childBottom = child.offsetTop + child.offsetHeight;
+
+      // Only mark as overflowing if bottom edge exceeds available height
+      if (childBottom > availableHeight) {
+         overflowing.push(child);
+      }
+   }
+
+   return overflowing;
+};
+
+/**
+ * Get element height including margins
+ */
+export const getElementHeight = (element: HTMLElement): number => {
+   const rect = element.getBoundingClientRect();
+   const style = window.getComputedStyle(element);
+   const marginTop = parseFloat(style.marginTop) || 0;
+   const marginBottom = parseFloat(style.marginBottom) || 0;
+   return rect.height + marginTop + marginBottom;
+};
+
+/**
+ * Check if element can be split across pages (text elements only)
+ */
+export const canElementBeSplit = (element: HTMLElement): boolean => {
+   const tag = element.tagName.toUpperCase();
+   const splittableTags = ['P', 'DIV', 'SPAN', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'];
+
+   // Don't split column containers, images, or special blocks
+   if (element.hasAttribute('data-column-container')) return false;
+   if (element.hasAttribute('data-html-block')) return false;
+   if (element.hasAttribute('data-element-type')) return false;
+   if (tag === 'IMG' || tag === 'HR' || tag === 'A') return false;
+
+   return splittableTags.includes(tag);
+};
+
+/**
+ * Split a text element at word boundaries to fit available height
+ * Returns null if can't fit even one word
+ */
+export const splitTextElement = (
+   element: HTMLElement,
+   availableHeight: number
+): { remaining: string; overflow: string } | null => {
+   const textContent = element.textContent || '';
+   const words = textContent.split(/\s+/).filter(w => w.length > 0);
+
+   if (words.length === 0) return null;
+
+   // Create a temporary measuring container
+   const measureDiv = document.createElement('div');
+   measureDiv.style.cssText = element.getAttribute('style') || '';
+   measureDiv.style.position = 'absolute';
+   measureDiv.style.visibility = 'hidden';
+   measureDiv.style.width = `${element.offsetWidth}px`;
+   measureDiv.style.maxWidth = `${element.offsetWidth}px`;
+   document.body.appendChild(measureDiv);
+
+   let splitIndex = words.length;
+
+   // Find the split point
+   for (let i = 1; i <= words.length; i++) {
+      measureDiv.textContent = words.slice(0, i).join(' ');
+      if (measureDiv.offsetHeight > availableHeight) {
+         splitIndex = Math.max(1, i - 1); // At least keep one word
+         break;
+      }
+   }
+
+   document.body.removeChild(measureDiv);
+
+   if (splitIndex === words.length) {
+      // Everything fits, no split needed
+      return null;
+   }
+
+   if (splitIndex === 0) {
+      // Can't fit even one word
+      return null;
+   }
+
+   const remainingWords = words.slice(0, splitIndex);
+   const overflowWords = words.slice(splitIndex);
+
+   // Build HTML preserving the element structure
+   const clone = element.cloneNode(false) as HTMLElement;
+   clone.removeAttribute('data-xpath');
+   clone.removeAttribute('data-selected');
+   clone.removeAttribute('contenteditable');
+   clone.removeAttribute('draggable');
+
+   // Remove toolbar from clone if exists
+   clone.querySelectorAll('.element-toolbar').forEach(t => t.remove());
+
+   clone.textContent = remainingWords.join(' ');
+   const remaining = clone.outerHTML;
+
+   clone.textContent = overflowWords.join(' ');
+   const overflow = clone.outerHTML;
+
+   return { remaining, overflow };
+};
+
+/**
+ * Clean an element's HTML for migration (remove editor attributes)
+ */
+export const cleanElementForMigration = (element: HTMLElement): string => {
+   const clone = element.cloneNode(true) as HTMLElement;
+
+   // Remove editor-specific attributes from root and all children
+   const cleanAttrs = (el: Element) => {
+      el.removeAttribute('data-xpath');
+      el.removeAttribute('data-selected');
+      el.removeAttribute('contenteditable');
+      el.removeAttribute('draggable');
+   };
+
+   cleanAttrs(clone);
+   clone.querySelectorAll('[data-xpath]').forEach(cleanAttrs);
+   clone.querySelectorAll('.element-toolbar').forEach(t => t.remove());
+
+   return clone.outerHTML;
 };

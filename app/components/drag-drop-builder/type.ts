@@ -33,16 +33,26 @@ export type Component = {
    category: 'blocks' | 'container';
 }
 
+export type Height = {
+   value: number;
+   unit: string;
+}
+
+export type Width = {
+   value: number;
+   unit: string;
+}
+
 export type Page = {
    id: string;
    name: string;
-   width: number;
-   height: number;
+   width: Width;
+   height: Height;
    html: string;
 }
 
 export type PagePreset = {
    name: string;
-   width: number;
-   height: number;
+   width: Width;
+   height: Height;
 }
