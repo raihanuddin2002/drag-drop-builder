@@ -259,9 +259,11 @@ export default function DragAndDropBuilder() {
             const gapLabel = window.document.createElement('div');
             gapLabel.className = 'page-gap-label';
             gapLabel.textContent = `Page ${i} → ${i + 1}`;
-            pageGapDiv.appendChild(gapLabel);
+            // pageGapDiv.appendChild(gapLabel);
+            pageGapDiv.insertAdjacentElement("beforeend", gapLabel);
 
-            pageOverlay.appendChild(pageGapDiv);
+            //  pageOverlay.appendChild(pageGapDiv);
+            pageOverlay.insertAdjacentElement('afterend', pageGapDiv);
          }
       }
 
