@@ -165,7 +165,7 @@ export default function DragAndDropBuilder() {
 
       const pageHeight = document.pageHeight?.value;
       const pagePadding = 40;
-      const pageGap = 40;
+      const pageGap = 20;
 
       // Content area per page (minus padding top and padding bottom)
       const usablePageHeight = pageHeight - (pagePadding * 2);
@@ -232,7 +232,17 @@ export default function DragAndDropBuilder() {
                const blockRect = breakElement.getBoundingClientRect();
                const contentRect = contentFlow.getBoundingClientRect();
                const currentTop = blockRect.top - contentRect.top;
-               const targetTop = breakPoint + pageGap;
+
+               /* 
+                  | Page 1 content
+                  | (40px bottom padding)
+                  |------------------  ← page break
+                  | (20px page gap)
+                  | (40px top padding)  ← now correct
+                  | Page 2 content
+                  * 1page end and 2nd page start should be same space -> targetTop (pagePadding * 2) added
+               */
+               const targetTop = breakPoint + pageGap + (pagePadding * 2);
                const marginNeeded = targetTop - currentTop;
 
                if (marginNeeded > 0) {
@@ -253,7 +263,8 @@ export default function DragAndDropBuilder() {
 
             const pageGapDiv = window.document.createElement('div');
             pageGapDiv.className = 'page-gap';
-            pageGapDiv.style.top = `${breakPosition}px`;
+            // 1page end and 2nd page start should be same space -> top = breakPosition + pagePadding
+            pageGapDiv.style.top = `${breakPosition + pagePadding}px`;
             pageGapDiv.style.height = `${pageGap}px`; // between 2 page 
             pageGapDiv.style.width = `100%`;
 
@@ -400,12 +411,8 @@ export default function DragAndDropBuilder() {
             }
 
             .page-overlay .page-gap-label {
-               font-size: 12px;
-               color: #ff0c0c;
-               background: white;
-               padding: 4px 16px;
-               border-radius: 12px;
-               box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+               font-size: 11px;
+               color: #6b7280;
             }
          </style>
          <div class="pages-wrapper">
@@ -1235,6 +1242,104 @@ export default function DragAndDropBuilder() {
       URL.revokeObjectURL(url);
    };
 
+   const exportPDF = () => {
+      // 1. Clean editor-only artifacts
+      const temp = window.document.createElement('div');
+      temp.innerHTML = document.content;
+
+      // Remove overlays / visual helpers
+      temp.querySelectorAll(
+         '.page-overlay, .page-gap, .page-gap-label'
+      ).forEach(el => el.remove());
+
+      // Remove JS-injected margins (editor only)
+      temp.querySelectorAll('[data-xpath]').forEach(el => {
+         (el as HTMLElement).style.removeProperty('margin-top');
+      });
+
+      const cleanedContent = temp.innerHTML;
+
+      // 2. Build export HTML (PRINT-DRIVEN PAGINATION)
+      const fullHtml = /* html */ `
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${document.name}</title>
+
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+        background: white;
+      }
+
+      .document {
+        width: ${document.pageWidth}px;
+        margin: 0 auto;
+      }
+
+      /* ==========================
+         PRINT (PDF) CONFIGURATION
+         ========================== */
+      @media print {
+
+        @page {
+          size: ${document.pageWidth}px ${document.pageHeight}px;
+          margin: 40px; /* pagePadding */
+        }
+
+        body {
+          background: none;
+        }
+
+        .document {
+          width: auto;
+          margin: 0;
+        }
+
+        /* REAL PAGE BREAKS (Word-style) */
+        [data-page-break-before] {
+          break-before: page;
+          page-break-before: always;
+        }
+
+        /* Prevent ugly splits */
+        [data-xpath] {
+          break-inside: avoid;
+          page-break-inside: avoid;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="document">
+      ${cleanedContent}
+    </div>
+  </body>
+</html>
+`;
+
+      // 3. Download HTML
+      const blob = new Blob([fullHtml], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+
+      const a = window.document.createElement('a');
+      a.href = url;
+      a.download = `${document.name.replace(/\s+/g, '-').toLowerCase()}.html`;
+      a.click();
+
+      URL.revokeObjectURL(url);
+   };
+
+
    const importHTML = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
@@ -1360,7 +1465,7 @@ export default function DragAndDropBuilder() {
                      Import
                      <input type="file" accept=".html,.htm" onChange={importHTML} className="hidden" />
                   </label>
-                  <button onClick={exportHTML} className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm">
+                  <button onClick={exportPDF} className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm">
                      <Download size={16} />
                      Export
                   </button>
