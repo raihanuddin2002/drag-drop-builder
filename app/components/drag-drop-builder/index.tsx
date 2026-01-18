@@ -254,16 +254,17 @@ export default function DragAndDropBuilder() {
             const pageGapDiv = window.document.createElement('div');
             pageGapDiv.className = 'page-gap';
             pageGapDiv.style.top = `${breakPosition}px`;
-            pageGapDiv.style.height = `${pageGap}px`;
+            pageGapDiv.style.height = `${pageGap}px`; // between 2 page 
+            pageGapDiv.style.width = `100%`;
 
             const gapLabel = window.document.createElement('div');
             gapLabel.className = 'page-gap-label';
-            gapLabel.textContent = `Page ${i} → ${i + 1}`;
-            // pageGapDiv.appendChild(gapLabel);
-            pageGapDiv.insertAdjacentElement("beforeend", gapLabel);
+            gapLabel.textContent = `Page ${i + 1}`;
 
-            //  pageOverlay.appendChild(pageGapDiv);
-            pageOverlay.insertAdjacentElement('afterend', pageGapDiv);
+            // page gap with show as part of .page-overlay
+            pageGapDiv.appendChild(gapLabel);
+            pageOverlay.appendChild(pageGapDiv);
+
          }
       }
 
@@ -297,6 +298,11 @@ export default function DragAndDropBuilder() {
 
       const containerFlowMinHeight = `calc(${document.pageHeight?.value}${document.pageHeight?.unit} - ${pagePadding * 2}px) !important`
 
+      // vh unit will be min-height and px unit will be height
+      const pagesContainerHeight = document.pageHeight?.unit === 'vh' ?
+         `min-height: ${document.pageHeight?.value}${document.pageHeight?.unit} !important`
+         : `height: ${document.pageHeight?.value}${document.pageHeight?.unit} !important`
+
       shadow.innerHTML = /*html*/`
          <style>
             ${EditorStyles}
@@ -319,7 +325,7 @@ export default function DragAndDropBuilder() {
                position: relative;
                width: ${document.pageWidth?.value}${document.pageWidth?.unit};
                margin: 0 auto;
-               min-height: ${document.pageHeight?.value}${document.pageHeight?.unit} !important;
+               ${pagesContainerHeight};
                background: white;
                box-shadow: 0 4px 20px rgba(0,0,0,0.15);
                border-radius: 2px;
@@ -386,21 +392,16 @@ export default function DragAndDropBuilder() {
 
             .page-overlay .page-gap {
                position: absolute;
-               left: -${pagePadding}px;
-               right: -${pagePadding}px;
-               background: linear-gradient(to bottom,
-                  rgba(229, 231, 235, 0.5) 0%,
-                  #e5e7eb 50%,
-                  rgba(229, 231, 235, 0.5) 100%
-               );
+               left: 0px;
+               box-shadow: rgba(0, 0, 0, 0.1) 0px 20px 20px -20px inset, rgba(0, 0, 0, 0.1) 0px -20px 20px -20px inset;
                display: flex;
                align-items: center;
                justify-content: center;
             }
 
             .page-overlay .page-gap-label {
-               font-size: 11px;
-               color: #6b7280;
+               font-size: 12px;
+               color: #ff0c0c;
                background: white;
                padding: 4px 16px;
                border-radius: 12px;
