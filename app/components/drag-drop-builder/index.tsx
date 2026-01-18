@@ -489,13 +489,6 @@ export default function DragAndDropBuilder() {
                addXPathData(child);
             }
          });
-
-         /* 
-          if (!child.classList.contains('element-toolbar') &&
-               !child.classList.contains('page-break-spacer')) {
-               addXPathData(child);
-            }
-         */
       };
 
       addXPathData(contentFlow);
@@ -1242,103 +1235,86 @@ export default function DragAndDropBuilder() {
       URL.revokeObjectURL(url);
    };
 
-   const exportPDF = () => {
-      // 1. Clean editor-only artifacts
-      const temp = window.document.createElement('div');
-      temp.innerHTML = document.content;
 
-      // Remove overlays / visual helpers
-      temp.querySelectorAll(
-         '.page-overlay, .page-gap, .page-gap-label'
-      ).forEach(el => el.remove());
+   const exportPDF = async (doc: {
+      name: string;
+      content: string;
+      engine?: 'chromium' | 'firefox' | 'webkit';
+   }) => {
+      const tempDiv = window.document.createElement('div');
+      tempDiv.innerHTML = doc.content;
 
-      // Remove JS-injected margins (editor only)
-      temp.querySelectorAll('[data-xpath]').forEach(el => {
-         (el as HTMLElement).style.removeProperty('margin-top');
+      // 1. Remove ONLY the visual labels/overlays
+      tempDiv.querySelectorAll('.page-overlay, .page-gap-label').forEach(el => el.remove());
+
+      // 2. Keep the .page-gap divs but make them invisible 
+      // (This preserves the exact spacing you calculated)
+      tempDiv.querySelectorAll<HTMLElement>('.page-gap').forEach(el => {
+         el.style.backgroundColor = 'transparent';
+         el.style.border = 'none';
       });
 
-      const cleanedContent = temp.innerHTML;
+      const pagePadding = '40px';
 
-      // 2. Build export HTML (PRINT-DRIVEN PAGINATION)
-      const fullHtml = /* html */ `
+      const html = `
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>${document.name}</title>
+<head>
+  <style>
+    @page { size: A4; margin: 0; }
+    
+    body { 
+      margin: 0; 
+      padding: 0; 
+      width: 210mm; /* Strict A4 width */
+    }
 
-    <style>
-      * {
-        box-sizing: border-box;
-      }
+    .content-wrapper {
+      width: 210mm;
+      margin: 0 auto;
+      /* This padding + the Playwright margin = your total UI padding */
+      padding: 0 40px; 
+    }
 
-      body {
-        margin: 0;
-        padding: 0;
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-        background: white;
-      }
+    /* Force your calculated breaks */
+    [data-page-break-before] { 
+      break-before: page; 
+      page-break-before: always;
+      /* Add back the top padding since Playwright margins moved the start point */
+      margin-top: 20px !important; 
+    }
 
-      .document {
-        width: ${document.pageWidth}px;
-        margin: 0 auto;
-      }
-
-      /* ==========================
-         PRINT (PDF) CONFIGURATION
-         ========================== */
-      @media print {
-
-        @page {
-          size: ${document.pageWidth}px ${document.pageHeight}px;
-          margin: 40px; /* pagePadding */
-        }
-
-        body {
-          background: none;
-        }
-
-        .document {
-          width: auto;
-          margin: 0;
-        }
-
-        /* REAL PAGE BREAKS (Word-style) */
-        [data-page-break-before] {
-          break-before: page;
-          page-break-before: always;
-        }
-
-        /* Prevent ugly splits */
-        [data-xpath] {
-          break-inside: avoid;
-          page-break-inside: avoid;
-        }
-      }
-    </style>
-  </head>
-
-  <body>
-    <div class="document">
-      ${cleanedContent}
-    </div>
-  </body>
+    /* Keep blocks together */
+    [data-xpath] { break-inside: avoid; }
+  </style>
+</head>
+<body>
+  <div class="content-wrapper">
+    ${tempDiv.innerHTML}
+  </div>
+</body>
 </html>
 `;
 
-      // 3. Download HTML
-      const blob = new Blob([fullHtml], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
+      const res = await fetch('/api/export-pdf', {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ html, title: doc.name, engine: doc.engine || 'chromium' }),
+      });
 
+      if (!res.ok) {
+         const err = await res.json();
+         throw new Error(err.error || 'PDF export failed');
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
       const a = window.document.createElement('a');
       a.href = url;
-      a.download = `${document.name.replace(/\s+/g, '-').toLowerCase()}.html`;
+      a.download = `${doc.name.replace(/\s+/g, '-').toLowerCase()}.pdf`;
       a.click();
-
       URL.revokeObjectURL(url);
    };
-
 
    const importHTML = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -1354,7 +1330,7 @@ export default function DragAndDropBuilder() {
 
             setDocument(prev => ({
                ...prev,
-               content: /*html*/`<div class="content-flow" data-container="true">${bodyContent}</div>`
+               content: /*html*/`< div class="content-flow" data - container="true" > ${bodyContent}</ > `
             }));
             setSelectedXPath(null);
             setSelectedElement(null);
@@ -1437,13 +1413,13 @@ export default function DragAndDropBuilder() {
 
                   <div className="w-px h-6 bg-gray-300 mx-2" />
 
-                  <button onClick={() => setBreakpoint('desktop')} className={`p-2 rounded ${breakpoint === 'desktop' ? 'bg-green-100 text-green-600' : 'text-gray-600 hover:bg-gray-100'}`}>
+                  <button onClick={() => setBreakpoint('desktop')} className={`p - 2 rounded ${breakpoint === 'desktop' ? 'bg-green-100 text-green-600' : 'text-gray-600 hover:bg-gray-100'} `}>
                      <Monitor size={18} />
                   </button>
-                  <button onClick={() => setBreakpoint('tablet')} className={`p-2 rounded ${breakpoint === 'tablet' ? 'bg-green-100 text-green-600' : 'text-gray-600 hover:bg-gray-100'}`}>
+                  <button onClick={() => setBreakpoint('tablet')} className={`p - 2 rounded ${breakpoint === 'tablet' ? 'bg-green-100 text-green-600' : 'text-gray-600 hover:bg-gray-100'} `}>
                      <Tablet size={18} />
                   </button>
-                  <button onClick={() => setBreakpoint('mobile')} className={`p-2 rounded ${breakpoint === 'mobile' ? 'bg-green-100 text-green-600' : 'text-gray-600 hover:bg-gray-100'}`}>
+                  <button onClick={() => setBreakpoint('mobile')} className={`p - 2 rounded ${breakpoint === 'mobile' ? 'bg-green-100 text-green-600' : 'text-gray-600 hover:bg-gray-100'} `}>
                      <Smartphone size={18} />
                   </button>
                </div>
@@ -1455,7 +1431,7 @@ export default function DragAndDropBuilder() {
                         else { setSelectedXPath(null); setSelectedElement(null); }
                         setIsPreviewMode(!isPreviewMode);
                      }}
-                     className={`flex items-center gap-2 px-4 py-2 rounded text-sm ${isPreviewMode ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                     className={`flex items - center gap - 2 px - 4 py - 2 rounded text - sm ${isPreviewMode ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'} `}
                   >
                      <Eye size={16} />
                      {isPreviewMode ? 'Exit Preview' : 'Preview'}
@@ -1465,7 +1441,10 @@ export default function DragAndDropBuilder() {
                      Import
                      <input type="file" accept=".html,.htm" onChange={importHTML} className="hidden" />
                   </label>
-                  <button onClick={exportPDF} className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm">
+                  <button onClick={() => exportPDF({
+                     name: document.name,
+                     content: document.content
+                  })} className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm">
                      <Download size={16} />
                      Export
                   </button>
@@ -1489,8 +1468,8 @@ export default function DragAndDropBuilder() {
                      <div
                         className="bg-white shadow-lg mx-auto"
                         style={{
-                           width: `${document.pageWidth.value}${document.pageWidth.unit}`,
-                           minHeight: `${(document.pageHeight?.value || 0) * pageCount}${document.pageHeight?.unit}`
+                           width: `${document.pageWidth.value}${document.pageWidth.unit} `,
+                           minHeight: `${(document.pageHeight?.value || 0) * pageCount}${document.pageHeight?.unit} `
                         }}
                         dangerouslySetInnerHTML={{ __html: cleanContent(document.content) }}
                      />
@@ -1503,7 +1482,7 @@ export default function DragAndDropBuilder() {
                            Dragging <strong>{draggedComponent.label}</strong> - Drop into the document
                         </div>
                      )}
-                     <div key={`editor-${editorKey}`} ref={setContainerRef} className="h-full" />
+                     <div key={`editor - ${editorKey} `} ref={setContainerRef} className="h-full" />
                   </>
                )}
             </div>
@@ -1511,7 +1490,7 @@ export default function DragAndDropBuilder() {
 
          {/* Right Sidebar */}
          {!isPreviewMode && (
-            <div className={`bg-white border-l transition-all duration-300 ${selectedXPath ? 'w-72' : 'w-0'} overflow-hidden`}>
+            <div className={`bg - white border - l transition - all duration - 300 ${selectedXPath ? 'w-72' : 'w-0'} overflow - hidden`}>
                {selectedXPath && elementInfo && (
                   <SettingsPanel
                      elementInfo={elementInfo}
