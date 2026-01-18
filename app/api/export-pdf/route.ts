@@ -38,32 +38,33 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       await page.setContent(body.html, { waitUntil: 'networkidle' });
 
       const pdfBuffer = await page.pdf({
-         format: 'A4', // Ensure this matches your UI selection
+         format: 'A4',
          printBackground: true,
          displayHeaderFooter: true,
          scale: 1,
-         // You MUST have margins for headers/footers to show up
          margin: {
-            top: '60px',    // Space for header
-            bottom: '60px', // Space for footer
+            top: '60px',
+            bottom: '60px',
             left: '0px',
-            right: '0px'
+            right: '0px',
          },
          headerTemplate: `
-      <div style="font-size: 10px; width: 100%; margin: 0 40px; color: #999;">
+      <div style="font-size:10px;width:100%;margin:0 40px;color:#999;">
          ${body.title}
       </div>`,
          footerTemplate: `
-      <div style="font-size: 10px; width: 100%; margin: 0 40px; color: #999; display: flex; justify-content: space-between;">
+      <div style="font-size:10px;width:100%;margin:0 40px;color:#999;display:flex;justify-content:space-between;">
          <span>Generated via Builder</span>
          <span>Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>
       </div>`,
       });
 
-      return new NextResponse(pdfBuffer, {
+      return new NextResponse(new Uint8Array(pdfBuffer), {
          headers: {
             'Content-Type': 'application/pdf',
-            'Content-Disposition': `attachment; filename="${body.title.replace(/\s+/g, '-').toLowerCase()}.pdf"`,
+            'Content-Disposition': `attachment; filename="${body.title
+               .replace(/\s+/g, '-')
+               .toLowerCase()}.pdf"`,
          },
       });
    } catch (err: any) {
