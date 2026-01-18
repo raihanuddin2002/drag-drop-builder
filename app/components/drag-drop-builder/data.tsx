@@ -94,7 +94,7 @@ export const WIDGETS: Component[] = [
       label: 'Text',
       icon: <Type size={20} />,
       category: 'blocks',
-      html: /* html */`<p style="color: #666; line-height: 1.6; margin: 0;">Add your text here.</p > `
+      html: /* html */`<p style="margin: 0;">Add your text here.</p > `
    },
    {
       id: 'button',
@@ -164,7 +164,7 @@ export const WIDGETS: Component[] = [
       label: 'Divider',
       icon: <Minus size={20} />,
       category: 'blocks',
-      html: /* html */`<hr style="border: none; border-top: 2px solid #e5e7eb; margin: 30px 0;" / > `
+      html: /* html */`<div class="editor-divider" style="border: none; height:2px; background: #e5e7eb; margin: 30px 0;"></div> `
    },
 ];
 

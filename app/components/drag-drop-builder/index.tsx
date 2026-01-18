@@ -1330,7 +1330,7 @@ export default function DragAndDropBuilder() {
 
             setDocument(prev => ({
                ...prev,
-               content: /*html*/`< div class="content-flow" data - container="true" > ${bodyContent}</ > `
+               content: /*html*/`<div class="content-flow" data-container="true" > ${bodyContent}</div > `
             }));
             setSelectedXPath(null);
             setSelectedElement(null);
@@ -1413,13 +1413,13 @@ export default function DragAndDropBuilder() {
 
                   <div className="w-px h-6 bg-gray-300 mx-2" />
 
-                  <button onClick={() => setBreakpoint('desktop')} className={`p - 2 rounded ${breakpoint === 'desktop' ? 'bg-green-100 text-green-600' : 'text-gray-600 hover:bg-gray-100'} `}>
+                  <button onClick={() => setBreakpoint('desktop')} className={`p-2 rounded ${breakpoint === 'desktop' ? 'bg-green-100 text-green-600' : 'text-gray-600 hover:bg-gray-100'} `}>
                      <Monitor size={18} />
                   </button>
-                  <button onClick={() => setBreakpoint('tablet')} className={`p - 2 rounded ${breakpoint === 'tablet' ? 'bg-green-100 text-green-600' : 'text-gray-600 hover:bg-gray-100'} `}>
+                  <button onClick={() => setBreakpoint('tablet')} className={`p-2 rounded ${breakpoint === 'tablet' ? 'bg-green-100 text-green-600' : 'text-gray-600 hover:bg-gray-100'} `}>
                      <Tablet size={18} />
                   </button>
-                  <button onClick={() => setBreakpoint('mobile')} className={`p - 2 rounded ${breakpoint === 'mobile' ? 'bg-green-100 text-green-600' : 'text-gray-600 hover:bg-gray-100'} `}>
+                  <button onClick={() => setBreakpoint('mobile')} className={`p-2 rounded ${breakpoint === 'mobile' ? 'bg-green-100 text-green-600' : 'text-gray-600 hover:bg-gray-100'} `}>
                      <Smartphone size={18} />
                   </button>
                </div>
@@ -1431,7 +1431,7 @@ export default function DragAndDropBuilder() {
                         else { setSelectedXPath(null); setSelectedElement(null); }
                         setIsPreviewMode(!isPreviewMode);
                      }}
-                     className={`flex items - center gap - 2 px - 4 py - 2 rounded text - sm ${isPreviewMode ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'} `}
+                     className={`flex items-center gap-2 px-4 py-2 rounded text-sm ${isPreviewMode ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'} `}
                   >
                      <Eye size={16} />
                      {isPreviewMode ? 'Exit Preview' : 'Preview'}
@@ -1482,7 +1482,7 @@ export default function DragAndDropBuilder() {
                            Dragging <strong>{draggedComponent.label}</strong> - Drop into the document
                         </div>
                      )}
-                     <div key={`editor - ${editorKey} `} ref={setContainerRef} className="h-full" />
+                     <div key={`editor-${editorKey}`} ref={setContainerRef} className="h-full" />
                   </>
                )}
             </div>
@@ -1490,7 +1490,7 @@ export default function DragAndDropBuilder() {
 
          {/* Right Sidebar */}
          {!isPreviewMode && (
-            <div className={`bg - white border - l transition - all duration - 300 ${selectedXPath ? 'w-72' : 'w-0'} overflow - hidden`}>
+            <div className={`bg-white border-l transition-all duration-300 ${selectedXPath ? 'w-72' : 'w-0'} overflow-hidden`}>
                {selectedXPath && elementInfo && (
                   <SettingsPanel
                      elementInfo={elementInfo}
