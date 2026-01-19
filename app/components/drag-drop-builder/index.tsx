@@ -12,7 +12,7 @@ import {
    Upload
 } from "lucide-react";
 import { SettingsPanel } from "./SettingsSidebar";
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import {
    Breakpoint,
    Block,
@@ -31,6 +31,7 @@ import {
    generateXPath,
    isEditableElement,
    parseStyles,
+   rafThrottle,
    resetPaginationStyling
 } from "./utils";
 import RichTextToolbar from "./RichEditorToolbar";
@@ -237,11 +238,11 @@ export default function DragAndDropBuilder() {
             const gap = document.createElement("div");
             gap.className = "page-gap";
             gap.style.cssText = `
-        position:absolute; left:0; width:100%;
-        top:${top}px; height:${GAP}px;
-        pointer-events:none;
-        display:flex; align-items:center; justify-content:center;
-      `;
+               position:absolute; left:0; width:100%;
+               top:${top}px; height:${GAP}px;
+               pointer-events:none;
+               display:flex; align-items:center; justify-content:center;
+            `;
             const label = document.createElement("div");
             label.className = "page-gap-label";
             label.textContent = `Page ${idx + 2}`;
@@ -253,14 +254,10 @@ export default function DragAndDropBuilder() {
 
       // 4) Height
       pagesContainer.style.minHeight = `${(totalPages * PAGE_H) + ((totalPages - 1) * GAP)}px`;
-   }, [
-      editorDocument?.pageHeight?.value,
-      editorDocument?.pageHeight?.unit,
-      setPageCount
-   ]);
 
+   }, [editorDocument?.pageHeight?.value, editorDocument?.pageHeight?.unit, setPageCount]);
 
-
+   const calculatePageBreaksRAF = useMemo(() => rafThrottle(calculatePageBreaks), [calculatePageBreaks]);
 
    // Main render effect - renders content into shadow DOM
    useEffect(() => {
@@ -465,7 +462,7 @@ export default function DragAndDropBuilder() {
       addXPathData(contentFlow);
 
       // Calculate page breaks after render
-      requestAnimationFrame(calculatePageBreaks);
+      calculatePageBreaksRAF();
 
       // Click handler
       const handleClick = (e: Event) => {
@@ -489,7 +486,7 @@ export default function DragAndDropBuilder() {
                      el.remove();
                      updateContentFromShadow();
                      setSelectedXPath(null);
-                     requestAnimationFrame(calculatePageBreaks);
+                     calculatePageBreaksRAF();
                   }
                } else if (action === 'duplicate') {
                   const el = shadow.querySelector(`[data-xpath="${xpath}"]`) as HTMLElement;
@@ -500,7 +497,7 @@ export default function DragAndDropBuilder() {
                      clone.removeAttribute('data-selected');
                      el.parentNode?.insertBefore(clone, el.nextSibling);
                      updateContentFromShadow();
-                     requestAnimationFrame(calculatePageBreaks);
+                     calculatePageBreaksRAF();
                   }
                }
             }
@@ -563,7 +560,7 @@ export default function DragAndDropBuilder() {
          if (target.hasAttribute('contenteditable') && target.hasAttribute('data-xpath')) {
             saveHistory();
             updateContentFromShadow();
-            requestAnimationFrame(calculatePageBreaks);
+            calculatePageBreaksRAF();
          }
       };
 
@@ -577,12 +574,12 @@ export default function DragAndDropBuilder() {
          window.document.execCommand('insertText', false, plainText);
          saveHistory();
          updateContentFromShadow();
-         requestAnimationFrame(calculatePageBreaks);
+         calculatePageBreaksRAF();
       };
 
       // Input handler - live page recalculation
       const handleInput = () => {
-         requestAnimationFrame(calculatePageBreaks);
+         calculatePageBreaksRAF();
       };
 
       pagesWrapper.addEventListener('click', handleClick);
@@ -720,7 +717,7 @@ export default function DragAndDropBuilder() {
                dropIndicator.remove();
                setDraggedComponent(null);
                updateContentFromShadow();
-               requestAnimationFrame(calculatePageBreaks);
+               calculatePageBreaksRAF();
                return;
             } else if (dragged) {
                // reordering elements
@@ -748,7 +745,8 @@ export default function DragAndDropBuilder() {
                }
 
                updateContentFromShadow();
-               requestAnimationFrame(calculatePageBreaks);
+               calculatePageBreaksRAF();
+
                return;
             }
          }
@@ -764,7 +762,8 @@ export default function DragAndDropBuilder() {
                dropZone.insertAdjacentHTML('beforeend', draggedComponent.html);
                setDraggedComponent(null);
                updateContentFromShadow();
-               requestAnimationFrame(calculatePageBreaks);
+               calculatePageBreaksRAF();
+
                return;
             } else if (dragged && !dropZone.contains(dragged)) {
                saveHistory();
@@ -790,7 +789,8 @@ export default function DragAndDropBuilder() {
                }
 
                updateContentFromShadow();
-               requestAnimationFrame(calculatePageBreaks);
+               calculatePageBreaksRAF();
+
                return;
             }
          }
@@ -823,7 +823,7 @@ export default function DragAndDropBuilder() {
          pagesWrapper.removeEventListener('dragleave', handleDragLeave);
          pagesWrapper.removeEventListener('drop', handleDrop);
       };
-   }, [editorDocument, draggedComponent, saveHistory, updateContentFromShadow, calculatePageBreaks, editorKey, isPreviewMode, shadowReady]);
+   }, [editorDocument, draggedComponent, saveHistory, updateContentFromShadow, calculatePageBreaksRAF, editorKey, isPreviewMode, shadowReady]);
 
    // Update selection highlight
    useEffect(() => {
@@ -874,7 +874,7 @@ export default function DragAndDropBuilder() {
             el.textContent = value;
          }
          updateContentFromShadow();
-         requestAnimationFrame(calculatePageBreaks);
+         calculatePageBreaksRAF();
       }
    };
 
@@ -888,7 +888,7 @@ export default function DragAndDropBuilder() {
          (el.style as any)[prop] = value;
          if (!livePreview) {
             updateContentFromShadow();
-            requestAnimationFrame(calculatePageBreaks);
+            calculatePageBreaksRAF();
          }
       }
    };
@@ -951,7 +951,7 @@ export default function DragAndDropBuilder() {
          saveHistory();
          el.setAttribute('style', css);
          updateContentFromShadow();
-         requestAnimationFrame(calculatePageBreaks);
+         calculatePageBreaksRAF();
       }
    };
 
@@ -965,7 +965,7 @@ export default function DragAndDropBuilder() {
          el.remove();
          updateContentFromShadow();
          setSelectedXPath(null);
-         requestAnimationFrame(calculatePageBreaks);
+         calculatePageBreaksRAF();
       }
    };
 
@@ -984,9 +984,9 @@ export default function DragAndDropBuilder() {
 
          el.parentNode?.insertBefore(clone, el.nextSibling);
          updateContentFromShadow();
-         requestAnimationFrame(calculatePageBreaks);
+         calculatePageBreaksRAF()
       }
-   }, [selectedXPath, saveHistory, updateContentFromShadow, calculatePageBreaks]);
+   }, [selectedXPath, saveHistory, updateContentFromShadow, calculatePageBreaksRAF]);
 
    const handleSidebarDragStart = (component: Block): void => {
       setDraggedComponent(component);

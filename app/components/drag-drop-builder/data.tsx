@@ -280,11 +280,10 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
 
         [data-xpath]:not([data-container="true"]):not(.drop-zone):not([data-column-container="true"]) {
             position: relative;
-            transition: outline 0.15s ease, background 0.15s ease;
             max-width: 100%;
         }
         [data-xpath]:not([data-container="true"]):not(.drop-zone):not([data-column-container="true"]):hover {
-            outline: 1px solid #22c55e !important;
+            outline: 2px solid #22c55e !important;
             outline-offset: 2px;
         }
         /* Prevent hover outline on elements inside a selected column container */
@@ -341,10 +340,7 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             outline: none;
             cursor: text;
         }
-        [contenteditable="true"]:focus {
-            background: rgba(34, 197, 94, 0.03);
-        }
-
+       
         .drop-zone {
             min-height: 80px;
             border: 0.5px dashed #cbd5e1;
@@ -377,7 +373,7 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             position: relative;
         }
         [data-column-container="true"]:hover {
-            outline: 1px solid #3b82f6;
+            outline: 2px solid #3b82f6;
             outline-offset: 4px;
         }
         [data-column-container="true"][data-selected="true"] {
@@ -388,7 +384,7 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
         .column-toolbar {
             position: absolute !important;
             background: #3b82f6 !important;
-            top: -36px !important;
+            top: -35px !important;
             left: 10px !important;
             transform: none !important;
             z-index: 1000 !important;
