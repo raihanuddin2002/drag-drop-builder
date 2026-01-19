@@ -94,7 +94,7 @@ export const COMPONENT_BLOCKS: Block[] = [
       label: 'Text',
       icon: <Type size={20} />,
       category: 'blocks',
-      html: /* html */`<p style="margin: 0;">Add your text here.</p > `
+      html: /* html */`<p style='margin: 0px;'>Add your text here.</p > `
    },
    {
       id: 'button',
@@ -104,7 +104,7 @@ export const COMPONENT_BLOCKS: Block[] = [
       html: /* html */`
          <a 
             href="#"
-            style="display: inline-block; padding: 12px 30px; background: #3b82f6; color: white; text-decoration: none; border-radius: 4px; margin: 10px 0;"
+            style='display: inline-block; padding: 12px 30px; background: #3b82f6; color: white; text-decoration: none; border-radius: 4px; margin: 10px 0;'
          >
             Click Me
          </a> 
@@ -115,56 +115,56 @@ export const COMPONENT_BLOCKS: Block[] = [
       label: 'Spacer',
       icon: <Minus size={20} />,
       category: 'blocks',
-      html: /* html */`<div data-element-type="spacer" style="height: 40px;"></div > `
+      html: /* html */`<div data-element-type='spacer' style='height: 40px;'></div > `
    },
    {
       id: 'heading',
       label: 'Heading',
       icon: <Type size={20} />,
       category: 'blocks',
-      html: /* html */`<h2 style="color: #333; margin: 0;">New Heading</h2 > `
+      html: /* html */`<h2 style='color: #333; margin: 0;'>New Heading</h2 > `
    },
    {
       id: 'video',
       label: 'Video',
       icon: <Video size={20} />,
       category: 'blocks',
-      html: /* html */`<div style="background: #f0f0f0; padding: 40px; text-align: center; margin: 15px 0; border-radius: 4px;">Video Placeholder - Add embed code</div > `
+      html: /* html */`<div style='background: #f0f0f0; padding: 40px; text-align: center; margin: 15px 0; border-radius: 4px;'>Video Placeholder - Add embed code</div > `
    },
    {
       id: 'social',
       label: 'Social',
       icon: <Share2 size={20} />,
       category: 'blocks',
-      html: /* html */`<div style="text-align: center; padding: 15px; margin: 15px 0;">Social Icons Placeholder</div > `
+      html: /* html */`<div style='text-align: center; padding: 15px; margin: 15px 0;'>Social Icons Placeholder</div > `
    },
    {
       id: 'timer',
       label: 'Timer',
       icon: <Clock size={20} />,
       category: 'blocks',
-      html: /* html */`<div style="text-align: center; padding: 20px; background: #f9fafb; margin: 15px 0; border-radius: 4px;">Timer Widget Placeholder</div > `
+      html: /* html */`<div style='text-align: center; padding: 20px; background: #f9fafb; margin: 15px 0; border-radius: 4px;'>Timer Widget Placeholder</div > `
    },
    {
       id: 'menu',
       label: 'Menu',
       icon: <Menu size={20} />,
       category: 'blocks',
-      html: /* html */`<div style="text-align: center; padding: 15px; margin: 15px 0;">Menu Widget Placeholder</div > `
+      html: /* html */`<div style='text-align: center; padding: 15px; margin: 15px 0;'>Menu Widget Placeholder</div > `
    },
    {
       id: 'html',
       label: 'HTML',
       icon: <Code size={20} />,
       category: 'blocks',
-      html: /* html */`<div data-html-block="true" style="padding: 15px; background: #f5f5f5; margin: 15px 0; font-family: monospace; border-radius: 4px;">Custom HTML Block</div > `
+      html: /* html */`<div data-html-block='true' style='padding: 15px; background: #f5f5f5; margin: 15px 0; font-family: monospace; border-radius: 4px;'>Custom HTML Block</div > `
    },
    {
       id: 'divider',
       label: 'Divider',
       icon: <Minus size={20} />,
       category: 'blocks',
-      html: /* html */`<div class="editor-divider" style="border: none; height:2px; background: #e5e7eb; margin: 30px 0;"></div> `
+      html: /* html */`<div class='editor-divider' style='border: none; height:2px; background: #e5e7eb; margin: 30px 0;'></div> `
    },
 ];
 
@@ -175,8 +175,8 @@ export const CONTAINER_LAYOUT_BLOCKS: Block[] = [
       icon: <Square size={20} />,
       category: 'container',
       html: /* html */`
-            <div style="display: flex; gap: 15px; margin: 10px 0;" data-column-container="true">
-                <div class="drop-zone" style="flex: 1; min-height: 100px;"></div>
+            <div style='display: flex; gap: 15px; margin: 10px 0;' data-column-container='true'>
+                <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
             </div>
         `
    },
@@ -186,9 +186,9 @@ export const CONTAINER_LAYOUT_BLOCKS: Block[] = [
       icon: <Square size={20} />,
       category: 'container',
       html: /* html */`
-         <div style="display: flex; gap: 15px; margin: 10px 0;" data-column-container="true">
-            <div class="drop-zone" style="flex: 1; min-height: 100px;"></div>
-            <div class="drop-zone" style="flex: 1; min-height: 100px;"></div>
+         <div style='display: flex; gap: 15px; margin: 10px 0;' data-column-container='true'>
+            <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
+            <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
          </div>
       `
    },
@@ -198,10 +198,10 @@ export const CONTAINER_LAYOUT_BLOCKS: Block[] = [
       icon: <Square size={20} />,
       category: 'container',
       html: /* html */`
-         <div style="display: flex; gap: 10px; margin:10px 0;" data-column-container="true">
-            <div class="drop-zone" style="flex: 1; padding: 10px; min-height: 100px;"></div>
-            <div class="drop-zone" style="flex: 1; padding: 10px; min-height: 100px;"></div>
-            <div class="drop-zone" style="flex: 1; padding: 10px; min-height: 100px;"></div>
+         <div style='display: flex; gap: 10px; margin:10px 0;' data-column-container='true'>
+            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
+            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
+            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
          </div>
       `
    },
@@ -211,11 +211,11 @@ export const CONTAINER_LAYOUT_BLOCKS: Block[] = [
       icon: <Square size={20} />,
       category: 'container',
       html: /* html */`
-         <div style="display: flex; gap: 10px; margin:10px 0;" data-column-container="true">
-            <div class="drop-zone" style="flex: 1; padding: 10px; min-height: 100px;"></div>
-            <div class="drop-zone" style="flex: 1; padding: 10px; min-height: 100px;"></div>
-            <div class="drop-zone" style="flex: 1; padding: 10px; min-height: 100px;"></div>
-            <div class="drop-zone" style="flex: 1; padding: 10px; min-height: 100px;"></div>
+         <div style='display: flex; gap: 10px; margin:10px 0;' data-column-container='true'>
+            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
+            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
+            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
+            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
          </div>
       `
    },
@@ -225,9 +225,9 @@ export const CONTAINER_LAYOUT_BLOCKS: Block[] = [
       icon: <Square size={20} />,
       category: 'container',
       html: /* html */`
-         <div style="display: flex; gap: 15px; margin:10px 0;" data-column-container="true">
-            <div class="drop-zone" style="flex: 1; min-height: 100px;"></div>
-            <div class="drop-zone" style="flex: 2; min-height: 100px;"></div>
+         <div style='display: flex; gap: 15px; margin:10px 0;' data-column-container='true'>
+            <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
+            <div class='drop-zone' style='flex: 2; min-height: 100px;'></div>
          </div>
       `
    },
@@ -237,9 +237,9 @@ export const CONTAINER_LAYOUT_BLOCKS: Block[] = [
       icon: <Square size={20} />,
       category: 'container',
       html: /* html */`
-         <div style="display: flex; gap: 15px; margin:10px 0;" data-column-container="true">
-            <div class="drop-zone" style="flex: 2; min-height: 100px;"></div>
-            <div class="drop-zone" style="flex: 1; min-height: 100px;"></div>
+         <div style='display: flex; gap: 15px; margin:10px 0;' data-column-container='true'>
+            <div class='drop-zone' style='flex: 2; min-height: 100px;'></div>
+            <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
          </div>
       `
    },
