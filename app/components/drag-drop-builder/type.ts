@@ -43,7 +43,7 @@ export type Width = {
    unit: string;
 }
 
-export type Page = {
+export type EditorPage = {
    id: string;
    name: string;
    width: Width;
@@ -55,4 +55,6 @@ export type PagePreset = {
    name: string;
    width: Width;
    height: Height;
+   default?: boolean;
+   show: boolean;
 }

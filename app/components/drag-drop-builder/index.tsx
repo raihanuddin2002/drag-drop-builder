@@ -25,7 +25,7 @@ import {
 } from "./utils";
 import RichTextToolbar from "./RichEditorToolbar";
 import { ElementsSidebar } from "./ElementsSidebar";
-import { PageSizeSettings } from "./PageSizeSettings";
+import { defaultPagePreset, PageSizeSettings } from "./PageSizeSettings";
 import { Height, Width } from "./type";
 
 // MS Word-like document - single continuous content stream
@@ -41,13 +41,13 @@ const INITIAL_CONTENT = /*html*/`<div class="content-flow" data-container="true"
 
 const generateDocId = () => `doc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-export default function DragAndDropBuilder() {
+export default function DragAndDropEditor() {
    // Single document with continuous content (MS Word-like)
    const [document, setDocument] = useState<Document>(() => ({
       id: generateDocId(),
       name: 'Untitled Document',
-      pageWidth: { value: 100, unit: '%' },
-      pageHeight: { value: 100, unit: 'vh' },
+      pageWidth: defaultPagePreset?.width,
+      pageHeight: defaultPagePreset?.height,
       content: INITIAL_CONTENT,
    }));
 

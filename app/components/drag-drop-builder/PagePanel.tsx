@@ -1,9 +1,9 @@
 import { Copy, FileText, Plus, Trash2, Type } from "lucide-react";
-import { Page } from "./type";
+import { EditorPage } from "./type";
 import { useState } from "react";
 
 export type PagePanelProps = {
-   pages: Page[];
+   pages: EditorPage[];
    currentIndex: number;
    onSelectPage: (index: number) => void;
    onAddPage: () => void;

@@ -1,5 +1,5 @@
 import { Clock, Code, Image, Menu, Minus, Share2, Square, Type, Video } from "lucide-react";
-import { Component, Page, PagePreset } from "./type";
+import { Component, EditorPage, PagePreset } from "./type";
 
 export const NON_EDITABLE_TAGS = ['IMG', 'HR', 'BR', 'STYLE', 'SCRIPT', 'BODY', 'CANVAS', 'IFRAME', 'SPAN', 'B', 'I', 'STRONG', 'EM'];
 export const CONTAINER_TAGS = ['DIV', 'SECTION', 'ARTICLE', 'HEADER', 'FOOTER', 'NAV', 'ASIDE', 'MAIN'];
@@ -28,19 +28,19 @@ export const INITIAL_PAGE_HTML = (currentPage: Record<string, any>) => {
 // PAGE PRESETS
 // ============================================
 export const PAGE_PRESETS: PagePreset[] = [
-   { name: 'Full Size', width: { value: 100, unit: '%' }, height: { value: 100, unit: 'vh' } },
-   { name: 'Letter (8.5" x 11")', width: { value: 816, unit: 'px' }, height: { value: 1056, unit: 'px' } },
-   { name: 'Legal (8.5" x 14")', width: { value: 816, unit: 'px' }, height: { value: 1344, unit: 'px' } },
-   { name: 'A4', width: { value: 794, unit: 'px' }, height: { value: 1123, unit: 'px' } },
-   { name: 'Tabloid (11" x 17")', width: { value: 1056, unit: 'px' }, height: { value: 1632, unit: 'px' } },
-   { name: 'Instagram Post', width: { value: 1080, unit: 'px' }, height: { value: 1080, unit: 'px' } },
-   { name: 'Instagram Story', width: { value: 1080, unit: 'px' }, height: { value: 1920, unit: 'px' } },
-   { name: 'Facebook Cover', width: { value: 820, unit: 'px' }, height: { value: 312, unit: 'px' } },
-   { name: 'Presentation (16:9)', width: { value: 1920, unit: 'px' }, height: { value: 1080, unit: 'px' } },
+   { name: 'Full Size', width: { value: 100, unit: '%' }, height: { value: 100, unit: 'vh' }, show: true },
+   { name: 'Letter (8.5" x 11")', width: { value: 816, unit: 'px' }, height: { value: 1056, unit: 'px' }, show: true },
+   { name: 'Legal (8.5" x 14")', width: { value: 816, unit: 'px' }, height: { value: 1344, unit: 'px' }, show: true },
+   { name: 'A4', width: { value: 794, unit: 'px' }, height: { value: 1123, unit: 'px' }, default: true, show: true },
+   { name: 'Tabloid (11" x 17")', width: { value: 1056, unit: 'px' }, height: { value: 1632, unit: 'px' }, show: true },
+   { name: 'Instagram Post', width: { value: 1080, unit: 'px' }, height: { value: 1080, unit: 'px' }, show: false },
+   { name: 'Instagram Story', width: { value: 1080, unit: 'px' }, height: { value: 1920, unit: 'px' }, show: false },
+   { name: 'Facebook Cover', width: { value: 820, unit: 'px' }, height: { value: 312, unit: 'px' }, show: false },
+   { name: 'Presentation (16:9)', width: { value: 1920, unit: 'px' }, height: { value: 1080, unit: 'px' }, show: false },
 ];
 
 // Helper to wrap page content in full HTML document for export
-export const wrapPageInDocument = (page: Page, styles: string = ''): string => /* html */`
+export const wrapPageInDocument = (page: EditorPage, styles: string = ''): string => /* html */`
 <!DOCTYPE html>
    <html>
       <head>
