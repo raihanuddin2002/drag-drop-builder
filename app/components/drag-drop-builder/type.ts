@@ -12,6 +12,15 @@ export type InlineLink = {
    index: number;
 }
 
+// MS Word-like document - single continuous content stream
+export type EditorDocument = {
+   id: string;
+   name: string;
+   pageWidth: Width;
+   pageHeight: Height;
+   content: string; // Single continuous HTML content
+}
+
 export type ElementInfo = {
    tag: string;
    styles: ElementStyles;

@@ -13,7 +13,14 @@ import {
 } from "lucide-react";
 import { SettingsPanel } from "./SettingsSidebar";
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Breakpoint, Component, ElementInfo } from "./type";
+import {
+   Breakpoint,
+   Component,
+   EditorDocument,
+   ElementInfo,
+   Height,
+   Width
+} from "./type";
 import {
    EDITOR_STYLES,
    NON_EDITABLE_TAGS,
@@ -26,16 +33,6 @@ import {
 import RichTextToolbar from "./RichEditorToolbar";
 import { ElementsSidebar } from "./ElementsSidebar";
 import { defaultPagePreset, PageSizeSettings } from "./PageSizeSettings";
-import { Height, Width } from "./type";
-
-// MS Word-like document - single continuous content stream
-interface Document {
-   id: string;
-   name: string;
-   pageWidth: Width;
-   pageHeight: Height;
-   content: string; // Single continuous HTML content
-}
 
 const INITIAL_CONTENT = /*html*/`<div class="content-flow" data-container="true"></div>`;
 
@@ -43,7 +40,7 @@ const generateDocId = () => `doc-${Date.now()}-${Math.random().toString(36).subs
 
 export default function DragAndDropEditor() {
    // Single document with continuous content (MS Word-like)
-   const [document, setDocument] = useState<Document>(() => ({
+   const [editorDocument, setEditorDocument] = useState<EditorDocument>(() => ({
       id: generateDocId(),
       name: 'Untitled Document',
       pageWidth: defaultPagePreset?.width,
@@ -63,7 +60,7 @@ export default function DragAndDropEditor() {
    const [editorKey, setEditorKey] = useState<number>(0);
 
    // History for undo/redo
-   const [history, setHistory] = useState<{ past: Document[]; future: Document[] }>({ past: [], future: [] });
+   const [history, setHistory] = useState<{ past: EditorDocument[]; future: EditorDocument[] }>({ past: [], future: [] });
 
    // Refs
    const containerRef = useRef<HTMLDivElement | null>(null);
@@ -91,10 +88,10 @@ export default function DragAndDropEditor() {
    // Save history
    const saveHistory = useCallback(() => {
       setHistory(prev => ({
-         past: [...prev.past.slice(-50), document],
+         past: [...prev.past.slice(-10), editorDocument],
          future: []
       }));
-   }, [document]);
+   }, [editorDocument]);
 
    // Undo
    const undo = useCallback(() => {
@@ -102,27 +99,27 @@ export default function DragAndDropEditor() {
          if (prev.past.length === 0) return prev;
          const newPast = [...prev.past];
          const previous = newPast.pop()!;
-         const current = document;
-         setDocument(previous);
+         const current = editorDocument;
+         setEditorDocument(previous);
          return { past: newPast, future: [current, ...prev.future] };
       });
-   }, [document]);
+   }, [editorDocument]);
 
    // Redo
    const redo = useCallback(() => {
       setHistory(prev => {
          if (prev.future.length === 0) return prev;
          const [next, ...newFuture] = prev.future;
-         const current = document;
-         setDocument(next);
+         const current = editorDocument;
+         setEditorDocument(next);
          return { past: [...prev.past, current], future: newFuture };
       });
-   }, [document]);
+   }, [editorDocument]);
 
    // Change page size
    const changePageSize = useCallback(({ width, height }: { width: Width; height: Height }) => {
       saveHistory();
-      setDocument(prev => ({ ...prev, pageWidth: width, pageHeight: height }));
+      setEditorDocument(prev => ({ ...prev, pageWidth: width, pageHeight: height }));
    }, [saveHistory]);
 
    // Extract content from shadow DOM and save to state
@@ -148,7 +145,7 @@ export default function DragAndDropEditor() {
       clone.querySelectorAll('.drop-indicator').forEach(el => el.remove());
       clone.querySelectorAll('.page-break-spacer').forEach(el => el.remove());
 
-      setDocument(prev => ({ ...prev, content: clone.outerHTML }));
+      setEditorDocument(prev => ({ ...prev, content: clone.outerHTML }));
    }, []);
 
    // Calculate and display page breaks visually using overlay + margin approach
@@ -161,9 +158,9 @@ export default function DragAndDropEditor() {
       const pageOverlay = shadow.querySelector('.page-overlay') as HTMLElement;
 
       if (!pagesContainer || !contentFlow || !pageOverlay) return;
-      if (document?.pageHeight?.unit === 'vh') return;
+      if (editorDocument?.pageHeight?.unit === 'vh') return;
 
-      const pageHeight = document.pageHeight?.value;
+      const pageHeight = editorDocument.pageHeight?.value;
       const pagePadding = 40;
       const pageGap = 20;
 
@@ -289,7 +286,7 @@ export default function DragAndDropEditor() {
       if (pageIndicator) {
          pageIndicator.textContent = `${totalPages} page${totalPages !== 1 ? 's' : ''}`;
       }
-   }, [document.pageHeight?.value]);
+   }, [editorDocument.pageHeight?.value]);
 
    // Main render effect - renders content into shadow DOM
    useEffect(() => {
@@ -302,17 +299,17 @@ export default function DragAndDropEditor() {
 
       const EditorStyles = EDITOR_STYLES({
          currentPageHeight: {
-            value: document?.pageHeight?.value,
-            unit: document?.pageHeight?.unit
+            value: editorDocument?.pageHeight?.value,
+            unit: editorDocument?.pageHeight?.unit
          }
       })
 
-      const containerFlowMinHeight = `calc(${document.pageHeight?.value}${document.pageHeight?.unit} - ${pagePadding * 2}px) !important`
+      const containerFlowMinHeight = `calc(${editorDocument.pageHeight?.value}${editorDocument.pageHeight?.unit} - ${pagePadding * 2}px) !important`
 
       // vh unit will be min-height and px unit will be height
-      const pagesContainerHeight = document.pageHeight?.unit === 'vh' ?
-         `min-height: ${document.pageHeight?.value}${document.pageHeight?.unit} !important`
-         : `height: ${document.pageHeight?.value}${document.pageHeight?.unit} !important`
+      const pagesContainerHeight = editorDocument.pageHeight?.unit === 'vh' ?
+         `min-height: ${editorDocument.pageHeight?.value}${editorDocument.pageHeight?.unit} !important`
+         : `height: ${editorDocument.pageHeight?.value}${editorDocument.pageHeight?.unit} !important`
 
       shadow.innerHTML = /*html*/`
          <style>
@@ -324,7 +321,7 @@ export default function DragAndDropEditor() {
             }
 
             .document-header {
-               width: ${document.pageWidth?.value}${document.pageWidth?.unit};
+               width: ${editorDocument.pageWidth?.value}${editorDocument.pageWidth?.unit};
                margin: 0 auto 20px;
                font-size: 12px;
                color: #666;
@@ -334,7 +331,7 @@ export default function DragAndDropEditor() {
 
             .pages-container {
                position: relative;
-               width: ${document.pageWidth?.value}${document.pageWidth?.unit};
+               width: ${editorDocument.pageWidth?.value}${editorDocument.pageWidth?.unit};
                margin: 0 auto;
                ${pagesContainerHeight};
                background: white;
@@ -417,13 +414,13 @@ export default function DragAndDropEditor() {
          </style>
          <div class="pages-wrapper">
             <div class="document-header">
-               <span>${document.name}</span>
-               <span style="color: #999;">${document.pageWidth?.value}${document.pageWidth?.unit} × ${document.pageHeight?.value}${document.pageHeight?.unit}</span>
+               <span>${editorDocument.name}</span>
+               <span style="color: #999;">${editorDocument.pageWidth?.value}${editorDocument.pageWidth?.unit} × ${editorDocument.pageHeight?.value}${editorDocument.pageHeight?.unit}</span>
                <span class="page-count" style="color: #22c55e; font-weight: 500;">1 page</span>
             </div>
             <div class="pages-container">
                <div class="page-overlay"></div>
-               ${document.content}
+               ${editorDocument.content}
             </div>
          </div>
       `;
@@ -858,7 +855,7 @@ export default function DragAndDropEditor() {
          pagesWrapper.removeEventListener('dragleave', handleDragLeave);
          pagesWrapper.removeEventListener('drop', handleDrop);
       };
-   }, [document, draggedComponent, saveHistory, updateContentFromShadow, calculatePageBreaks, editorKey, isPreviewMode, shadowReady]);
+   }, [editorDocument, draggedComponent, saveHistory, updateContentFromShadow, calculatePageBreaks, editorKey, isPreviewMode, shadowReady]);
 
    // Update selection highlight
    useEffect(() => {
@@ -874,7 +871,7 @@ export default function DragAndDropEditor() {
             setSelectedElement(el as HTMLElement);
          }
       }
-   }, [selectedXPath, document]);
+   }, [selectedXPath, editorDocument]);
 
    // Element manipulation functions
    const updateContent = (value: string, isHtml: boolean = false): void => {
@@ -1196,7 +1193,7 @@ export default function DragAndDropEditor() {
 
    // Export
    const exportHTML = () => {
-      const cleanedContent = cleanContent(document.content);
+      const cleanedContent = cleanContent(editorDocument.content);
 
       const fullHtml = /*html*/`
          <!DOCTYPE html>
@@ -1204,16 +1201,16 @@ export default function DragAndDropEditor() {
                <head>
                   <meta charset="UTF-8">
                   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                  <title>${document.name}</title>
+                  <title>${editorDocument.name}</title>
                   <style>
                      * { box-sizing: border-box; }
                         body { margin: 0; padding: 20px; font-family: system-ui, sans-serif; background: #f5f5f5; }
                         .document {
-                           width: ${document.pageWidth}px;
+                           width: ${editorDocument.pageWidth}px;
                            margin: 0 auto;
                            background: white;
                            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                           min-height: ${document.pageHeight}px;
+                           min-height: ${editorDocument.pageHeight}px;
                         }
                         @media print {
                            .document { box-shadow: none; margin: 0; }
@@ -1230,7 +1227,7 @@ export default function DragAndDropEditor() {
       const url = URL.createObjectURL(blob);
       const a = window.document.createElement('a');
       a.href = url;
-      a.download = `${document.name.replace(/\s+/g, '-').toLowerCase()}.html`;
+      a.download = `${editorDocument.name.replace(/\s+/g, '-').toLowerCase()}.html`;
       a.click();
       URL.revokeObjectURL(url);
    };
@@ -1328,7 +1325,7 @@ export default function DragAndDropEditor() {
             const bodyMatch = content.match(/<body[^>]*>([\s\S]*)<\/body>/i);
             const bodyContent = bodyMatch ? bodyMatch[1].trim() : content;
 
-            setDocument(prev => ({
+            setEditorDocument(prev => ({
                ...prev,
                content: /*html*/`<div class="content-flow" data-container="true" > ${bodyContent}</div > `
             }));
@@ -1396,10 +1393,10 @@ export default function DragAndDropEditor() {
 
                   <PageSizeSettings
                      currentPage={{
-                        width: { value: document.pageWidth?.value, unit: document?.pageWidth?.unit },
-                        height: { value: document.pageHeight?.value, unit: document?.pageHeight?.unit },
-                        id: document.id,
-                        name: document.name,
+                        width: { value: editorDocument.pageWidth?.value, unit: editorDocument?.pageWidth?.unit },
+                        height: { value: editorDocument.pageHeight?.value, unit: editorDocument?.pageHeight?.unit },
+                        id: editorDocument.id,
+                        name: editorDocument.name,
                         html: ''
                      }}
                      onChangeSize={changePageSize}
@@ -1442,8 +1439,8 @@ export default function DragAndDropEditor() {
                      <input type="file" accept=".html,.htm" onChange={importHTML} className="hidden" />
                   </label>
                   <button onClick={() => exportPDF({
-                     name: document.name,
-                     content: document.content
+                     name: editorDocument.name,
+                     content: editorDocument.content
                   })} className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm">
                      <Download size={16} />
                      Export
@@ -1468,10 +1465,10 @@ export default function DragAndDropEditor() {
                      <div
                         className="bg-white shadow-lg mx-auto"
                         style={{
-                           width: `${document.pageWidth.value}${document.pageWidth.unit} `,
-                           minHeight: `${(document.pageHeight?.value || 0) * pageCount}${document.pageHeight?.unit} `
+                           width: `${editorDocument.pageWidth.value}${editorDocument.pageWidth.unit} `,
+                           minHeight: `${(editorDocument.pageHeight?.value || 0) * pageCount}${editorDocument.pageHeight?.unit} `
                         }}
-                        dangerouslySetInnerHTML={{ __html: cleanContent(document.content) }}
+                        dangerouslySetInnerHTML={{ __html: cleanContent(editorDocument.content) }}
                      />
                   </div>
                ) : (
