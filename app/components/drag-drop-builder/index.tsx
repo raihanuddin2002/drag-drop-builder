@@ -161,141 +161,134 @@ export default function DragAndDropBuilder() {
    const calculatePageBreaks = useCallback(() => {
       const shadow = shadowRootRef.current;
       if (!shadow) return;
+      if (editorDocument?.pageHeight?.unit === "vh") return;
 
-      const pagesContainer = shadow.querySelector('.pages-container') as HTMLElement;
-      const contentFlow = shadow.querySelector('.content-flow') as HTMLElement;
-      const pageOverlay = shadow.querySelector('.page-overlay') as HTMLElement;
+      const pagesContainer = shadow.querySelector(".pages-container") as HTMLElement | null;
+      const contentFlow = shadow.querySelector(".content-flow") as HTMLElement | null;
+      const pageOverlay = shadow.querySelector(".page-overlay") as HTMLElement | null;
 
       if (!pagesContainer || !contentFlow || !pageOverlay) return;
-      if (editorDocument?.pageHeight?.unit === 'vh') return;
 
-      const pageHeight = editorDocument.pageHeight?.value;
-      const pagePadding = 40;
-      const pageGap = 20;
+      const PAGE_H = editorDocument?.pageHeight?.value ?? 0;
+      if (!PAGE_H) return;
 
-      // Content area per page (minus padding top and padding bottom)
-      const usablePageHeight = pageHeight - (pagePadding * 2);
+      const PADDING = 40;
+      const GAP = 20;
+      const USABLE_H = PAGE_H - (PADDING * 2);
 
-      // Clear existing overlays and reset margins
-      pageOverlay.innerHTML = '';
-      contentFlow.querySelectorAll('[data-xpath]').forEach(el => {
-         (el as HTMLElement).style.removeProperty('margin-top');
-         (el as HTMLElement).removeAttribute('data-page-break-before');
+      // -------- 0) CLEANUP (writes) --------
+      pageOverlay.innerHTML = "";
+
+      const blocks = Array.from(contentFlow.children).filter(el =>
+         (el as HTMLElement).hasAttribute("data-xpath")
+      ) as HTMLElement[];
+
+      for (const el of blocks) {
+         el.style.removeProperty("margin-top");
+         el.removeAttribute("data-page-break-before");
+      }
+
+      if (blocks.length === 0) {
+         setPageCount(1);
+         pagesContainer.style.minHeight = `${PAGE_H}px`;
+         return;
+      }
+
+      // -------- 1) MEASURE ONCE (reads) --------
+      const flowRect = contentFlow.getBoundingClientRect();
+
+      const metrics = blocks.map(el => {
+         const r = el.getBoundingClientRect();
+         return {
+            el,
+            top: r.top - flowRect.top,
+            height: r.height
+         };
       });
 
-      // Get content elements
-      const getBlocks = () => {
-         const contentRect = contentFlow.getBoundingClientRect();
-         return Array.from(contentFlow.children)
-            .filter(el => el.hasAttribute('data-xpath'))
-            .map(el => {
-               const rect = el.getBoundingClientRect();
-               return {
-                  el: el as HTMLElement,
-                  top: rect.top - contentRect.top,
-                  height: rect.height,
-                  bottom: rect.top - contentRect.top + rect.height
-               };
-            });
-      };
+      // -------- 2) SINGLE SCAN (math) --------
+      let pageIndex = 1;          // 1-based
+      let shift = 0;              // total added margin space so far
+      const gapTops: number[] = [];
 
-      // First pass: calculate content height without gaps
-      let blocks = getBlocks();
-      let contentHeight = 0;
-      if (blocks.length > 0) {
-         const lastBlock = blocks[blocks.length - 1];
-         contentHeight = lastBlock.bottom;
+      const pageBoxTop = (p: number) => (p - 1) * (PAGE_H + GAP);
+      const pageContentTop = (p: number) => pageBoxTop(p) + PADDING;
+
+      for (let i = 0; i < metrics.length; i++) {
+         const { el, top, height } = metrics[i];
+
+         const simTop = top + shift;
+
+         // How far into the current page content area this block starts
+         const usedInPage = simTop - pageContentTop(pageIndex);
+
+         // If it overflows the usable area, push it to next page
+         // `usedInPage > 0` prevents breaking before the first element on a page
+         if (usedInPage + height > USABLE_H && usedInPage > 0) {
+            const nextPage = pageIndex + 1;
+            const targetTop = pageContentTop(nextPage); // exact top padding start of next page
+            const marginNeeded = targetTop - simTop;
+
+            if (marginNeeded > 0) {
+               const existingMargin = parseFloat(getComputedStyle(el).marginTop) || 0;
+               el.style.marginTop = `${existingMargin + marginNeeded}px`;
+               el.setAttribute("data-page-break-before", String(pageIndex));
+
+               shift += marginNeeded;
+
+               // Gap begins right after the current page box ends
+               // end of pageIndex page box = pageBoxTop(pageIndex) + PAGE_H
+               gapTops.push(pageBoxTop(pageIndex) + PAGE_H);
+
+               pageIndex = nextPage;
+            }
+         }
       }
 
-      // Calculate number of pages needed
-      const totalPages = Math.max(1, Math.ceil(contentHeight / usablePageHeight));
+      const totalPages = pageIndex;
       setPageCount(totalPages);
 
-      // Add margins to elements at page breaks to push content down
-      if (totalPages > 1) {
-         let cumulativeOffset = 0;
+      // -------- 3) OVERLAY (writes) --------
+      if (gapTops.length > 0) {
+         const frag = document.createDocumentFragment();
 
-         for (let pageNum = 1; pageNum < totalPages; pageNum++) {
-            // Recalculate blocks after each margin addition
-            blocks = getBlocks();
+         gapTops.forEach((gapTop, idx) => {
+            const gap = document.createElement("div");
+            gap.className = "page-gap";
+            gap.style.cssText = `
+               position: absolute;
+               top: ${gapTop}px;
+               left: 0;
+               width: 100%;
+               height: ${GAP}px;
+               pointer-events: none;
+               display: flex;
+               align-items: center;
+               justify-content: center;
+            `;
 
-            // Where this page break should occur (accounting for previous gaps)
-            const breakPoint = (pageNum * usablePageHeight) + (cumulativeOffset);
+            const label = document.createElement("div");
+            label.className = "page-gap-label";
+            label.textContent = `Page ${idx + 2}`;
 
-            // Find the first element that crosses or starts after the break point
-            let breakElement: HTMLElement | null = null;
+            gap.appendChild(label);
+            frag.appendChild(gap);
+         });
 
-            for (const block of blocks) {
-               // If element starts after break point or crosses it, this is where we break
-               if (block.top >= breakPoint || (block.top < breakPoint && block.bottom > breakPoint)) {
-                  breakElement = block.el;
-                  break;
-               }
-            }
-
-            if (breakElement && !breakElement.hasAttribute('data-page-break-before')) {
-               // Calculate how much to push down
-               const blockRect = breakElement.getBoundingClientRect();
-               const contentRect = contentFlow.getBoundingClientRect();
-               const currentTop = blockRect.top - contentRect.top;
-
-               /* 
-                  | Page 1 content
-                  | (40px bottom padding)
-                  |------------------  ← page break
-                  | (20px page gap)
-                  | (40px top padding)  ← now correct
-                  | Page 2 content
-                  * 1page end and 2nd page start should be same space -> targetTop (pagePadding * 2) added
-               */
-               const targetTop = breakPoint + pageGap + (pagePadding * 2);
-               const marginNeeded = targetTop - currentTop;
-
-               if (marginNeeded > 0) {
-                  const existingMargin = parseFloat(window.getComputedStyle(breakElement).marginTop) || 0;
-                  breakElement.style.marginTop = `${existingMargin + marginNeeded}px`;
-                  breakElement.setAttribute('data-page-break-before', String(pageNum));
-                  cumulativeOffset += pageGap;
-               }
-            }
-         }
+         pageOverlay.appendChild(frag);
       }
 
-      // Render page break indicators in overlay
-      if (totalPages > 1) {
-         for (let i = 1; i < totalPages; i++) {
-            // Position at the actual page break location
-            const breakPosition = (i * usablePageHeight) + ((i - 1) * pageGap);
+      // -------- 4) CONTAINER HEIGHT (writes) --------
+      const totalHeight = (totalPages * PAGE_H) + ((totalPages - 1) * GAP);
+      pagesContainer.style.minHeight = `${totalHeight}px`;
 
-            const pageGapDiv = window.document.createElement('div');
-            pageGapDiv.className = 'page-gap';
-            // 1page end and 2nd page start should be same space -> top = breakPosition + pagePadding
-            pageGapDiv.style.top = `${breakPosition + pagePadding}px`;
-            pageGapDiv.style.height = `${pageGap}px`; // between 2 page 
-            pageGapDiv.style.width = `100%`;
+   }, [
+      editorDocument?.pageHeight?.value,
+      editorDocument?.pageHeight?.unit,
+      setPageCount
+   ]);
 
-            const gapLabel = window.document.createElement('div');
-            gapLabel.className = 'page-gap-label';
-            gapLabel.textContent = `Page ${i + 1}`;
 
-            // page gap with show as part of .page-overlay
-            pageGapDiv.appendChild(gapLabel);
-            pageOverlay.appendChild(pageGapDiv);
-
-         }
-      }
-
-      // Update container heights
-      const totalContainerHeight = (totalPages * pageHeight) + ((totalPages - 1) * pageGap);
-      pagesContainer.style.minHeight = `${totalContainerHeight}px`;
-      contentFlow.style.minHeight = `${totalContainerHeight - (pagePadding * 2)}px`;
-
-      // Update page count display
-      const pageIndicator = shadow.querySelector('.page-count');
-      if (pageIndicator) {
-         pageIndicator.textContent = `${totalPages} page${totalPages !== 1 ? 's' : ''}`;
-      }
-   }, [editorDocument.pageHeight?.value]);
 
    // Main render effect - renders content into shadow DOM
    useEffect(() => {
