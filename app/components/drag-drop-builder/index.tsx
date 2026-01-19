@@ -27,9 +27,11 @@ import {
    PAGE_PRESETS,
 } from "./data";
 import {
+   applyPaginationMargin,
    generateXPath,
    isEditableElement,
-   parseStyles
+   parseStyles,
+   resetPaginationStyling
 } from "./utils";
 import RichTextToolbar from "./RichEditorToolbar";
 import { ElementsSidebar } from "./ElementsSidebar";
@@ -166,7 +168,6 @@ export default function DragAndDropBuilder() {
       const pagesContainer = shadow.querySelector(".pages-container") as HTMLElement | null;
       const contentFlow = shadow.querySelector(".content-flow") as HTMLElement | null;
       const pageOverlay = shadow.querySelector(".page-overlay") as HTMLElement | null;
-
       if (!pagesContainer || !contentFlow || !pageOverlay) return;
 
       const PAGE_H = editorDocument?.pageHeight?.value ?? 0;
@@ -176,17 +177,14 @@ export default function DragAndDropBuilder() {
       const GAP = 20;
       const USABLE_H = PAGE_H - (PADDING * 2);
 
-      // -------- 0) CLEANUP (writes) --------
-      pageOverlay.innerHTML = "";
-
+      // Blocks you paginate
       const blocks = Array.from(contentFlow.children).filter(el =>
          (el as HTMLElement).hasAttribute("data-xpath")
       ) as HTMLElement[];
 
-      for (const el of blocks) {
-         el.style.removeProperty("margin-top");
-         el.removeAttribute("data-page-break-before");
-      }
+      // 0) Cleanup ONLY what pagination added (do not nuke styles)
+      pageOverlay.innerHTML = "";
+      for (const el of blocks) resetPaginationStyling(el);
 
       if (blocks.length === 0) {
          setPageCount(1);
@@ -194,52 +192,36 @@ export default function DragAndDropBuilder() {
          return;
       }
 
-      // -------- 1) MEASURE ONCE (reads) --------
+      // 1) Measure once
       const flowRect = contentFlow.getBoundingClientRect();
-
       const metrics = blocks.map(el => {
          const r = el.getBoundingClientRect();
-         return {
-            el,
-            top: r.top - flowRect.top,
-            height: r.height
-         };
+         return { el, top: r.top - flowRect.top, height: r.height };
       });
 
-      // -------- 2) SINGLE SCAN (math) --------
-      let pageIndex = 1;          // 1-based
-      let shift = 0;              // total added margin space so far
+      // 2) Single scan, no drift
+      let pageIndex = 1;
+      let shift = 0;
       const gapTops: number[] = [];
 
       const pageBoxTop = (p: number) => (p - 1) * (PAGE_H + GAP);
       const pageContentTop = (p: number) => pageBoxTop(p) + PADDING;
 
-      for (let i = 0; i < metrics.length; i++) {
-         const { el, top, height } = metrics[i];
-
-         const simTop = top + shift;
-
-         // How far into the current page content area this block starts
+      for (const m of metrics) {
+         const simTop = m.top + shift;
          const usedInPage = simTop - pageContentTop(pageIndex);
 
-         // If it overflows the usable area, push it to next page
-         // `usedInPage > 0` prevents breaking before the first element on a page
-         if (usedInPage + height > USABLE_H && usedInPage > 0) {
+         if (usedInPage + m.height > USABLE_H && usedInPage > 0) {
             const nextPage = pageIndex + 1;
-            const targetTop = pageContentTop(nextPage); // exact top padding start of next page
-            const marginNeeded = targetTop - simTop;
+            const targetTop = pageContentTop(nextPage);
+            const add = targetTop - simTop;
 
-            if (marginNeeded > 0) {
-               const existingMargin = parseFloat(getComputedStyle(el).marginTop) || 0;
-               el.style.marginTop = `${existingMargin + marginNeeded}px`;
-               el.setAttribute("data-page-break-before", String(pageIndex));
+            if (add > 0) {
+               applyPaginationMargin(m.el, add);
+               m.el.setAttribute("data-page-break-before", String(pageIndex));
 
-               shift += marginNeeded;
-
-               // Gap begins right after the current page box ends
-               // end of pageIndex page box = pageBoxTop(pageIndex) + PAGE_H
+               shift += add;
                gapTops.push(pageBoxTop(pageIndex) + PAGE_H);
-
                pageIndex = nextPage;
             }
          }
@@ -248,45 +230,35 @@ export default function DragAndDropBuilder() {
       const totalPages = pageIndex;
       setPageCount(totalPages);
 
-      // -------- 3) OVERLAY (writes) --------
-      if (gapTops.length > 0) {
+      // 3) Overlay
+      if (gapTops.length) {
          const frag = document.createDocumentFragment();
-
-         gapTops.forEach((gapTop, idx) => {
+         gapTops.forEach((top, idx) => {
             const gap = document.createElement("div");
             gap.className = "page-gap";
             gap.style.cssText = `
-               position: absolute;
-               top: ${gapTop}px;
-               left: 0;
-               width: 100%;
-               height: ${GAP}px;
-               pointer-events: none;
-               display: flex;
-               align-items: center;
-               justify-content: center;
-            `;
-
+        position:absolute; left:0; width:100%;
+        top:${top}px; height:${GAP}px;
+        pointer-events:none;
+        display:flex; align-items:center; justify-content:center;
+      `;
             const label = document.createElement("div");
             label.className = "page-gap-label";
             label.textContent = `Page ${idx + 2}`;
-
             gap.appendChild(label);
             frag.appendChild(gap);
          });
-
          pageOverlay.appendChild(frag);
       }
 
-      // -------- 4) CONTAINER HEIGHT (writes) --------
-      const totalHeight = (totalPages * PAGE_H) + ((totalPages - 1) * GAP);
-      pagesContainer.style.minHeight = `${totalHeight}px`;
-
+      // 4) Height
+      pagesContainer.style.minHeight = `${(totalPages * PAGE_H) + ((totalPages - 1) * GAP)}px`;
    }, [
       editorDocument?.pageHeight?.value,
       editorDocument?.pageHeight?.unit,
       setPageCount
    ]);
+
 
 
 
