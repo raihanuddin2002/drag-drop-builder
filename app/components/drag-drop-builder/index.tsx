@@ -13,10 +13,18 @@ import {
 } from "lucide-react";
 import { SettingsPanel } from "./SettingsSidebar";
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Breakpoint, Component, ElementInfo } from "./type";
+import {
+   Breakpoint,
+   Block,
+   ElementInfo,
+   EditorDocument,
+   Height,
+   Width
+} from "./type";
 import {
    EDITOR_STYLES,
    NON_EDITABLE_TAGS,
+   PAGE_PRESETS,
 } from "./data";
 import {
    generateXPath,
@@ -26,28 +34,19 @@ import {
 import RichTextToolbar from "./RichEditorToolbar";
 import { ElementsSidebar } from "./ElementsSidebar";
 import { PageSizeSettings } from "./PageSizeSettings";
-import { Height, Width } from "./type";
-
-// MS Word-like document - single continuous content stream
-interface Document {
-   id: string;
-   name: string;
-   pageWidth: Width;
-   pageHeight: Height;
-   content: string; // Single continuous HTML content
-}
 
 const INITIAL_CONTENT = /*html*/`<div class="content-flow" data-container="true"></div>`;
 
 const generateDocId = () => `doc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+const defaultPagePreset = PAGE_PRESETS.find(p => p.default)!;
 
 export default function DragAndDropBuilder() {
    // Single document with continuous content (MS Word-like)
-   const [document, setDocument] = useState<Document>(() => ({
+   const [editorDocument, setEditorDocument] = useState<EditorDocument>(() => ({
       id: generateDocId(),
       name: 'Untitled Document',
-      pageWidth: { value: 100, unit: '%' },
-      pageHeight: { value: 100, unit: 'vh' },
+      pageWidth: defaultPagePreset.width,
+      pageHeight: defaultPagePreset.height,
       content: INITIAL_CONTENT,
    }));
 
@@ -56,14 +55,13 @@ export default function DragAndDropBuilder() {
 
    // Selection state
    const [selectedXPath, setSelectedXPath] = useState<string | null>(null);
-   const [, setSelectedElement] = useState<HTMLElement | null>(null);
    const [breakpoint, setBreakpoint] = useState<Breakpoint>('desktop');
-   const [draggedComponent, setDraggedComponent] = useState<Component | null>(null);
+   const [draggedComponent, setDraggedComponent] = useState<Block | null>(null);
    const [isPreviewMode, setIsPreviewMode] = useState<boolean>(false);
    const [editorKey, setEditorKey] = useState<number>(0);
 
    // History for undo/redo
-   const [history, setHistory] = useState<{ past: Document[]; future: Document[] }>({ past: [], future: [] });
+   const [history, setHistory] = useState<{ past: EditorDocument[]; future: EditorDocument[] }>({ past: [], future: [] });
 
    // Refs
    const containerRef = useRef<HTMLDivElement | null>(null);
@@ -88,13 +86,21 @@ export default function DragAndDropBuilder() {
       }
    }, [isPreviewMode]);
 
+   // Get selected element from shadow DOM
+   const getSelectedElement = (): HTMLElement | null => {
+      const shadow = shadowRootRef.current;
+      if (!shadow || !selectedXPath) return null;
+
+      return shadow.querySelector(`[data-xpath="${selectedXPath}"]`) as HTMLElement | null;
+   };
+
    // Save history
    const saveHistory = useCallback(() => {
       setHistory(prev => ({
-         past: [...prev.past.slice(-50), document],
+         past: [...prev.past.slice(-50), editorDocument],
          future: []
       }));
-   }, [document]);
+   }, [editorDocument]);
 
    // Undo
    const undo = useCallback(() => {
@@ -102,27 +108,27 @@ export default function DragAndDropBuilder() {
          if (prev.past.length === 0) return prev;
          const newPast = [...prev.past];
          const previous = newPast.pop()!;
-         const current = document;
-         setDocument(previous);
+         const current = editorDocument;
+         setEditorDocument(previous);
          return { past: newPast, future: [current, ...prev.future] };
       });
-   }, [document]);
+   }, [editorDocument]);
 
    // Redo
    const redo = useCallback(() => {
       setHistory(prev => {
          if (prev.future.length === 0) return prev;
          const [next, ...newFuture] = prev.future;
-         const current = document;
-         setDocument(next);
+         const current = editorDocument;
+         setEditorDocument(next);
          return { past: [...prev.past, current], future: newFuture };
       });
-   }, [document]);
+   }, [editorDocument]);
 
    // Change page size
    const changePageSize = useCallback(({ width, height }: { width: Width; height: Height }) => {
       saveHistory();
-      setDocument(prev => ({ ...prev, pageWidth: width, pageHeight: height }));
+      setEditorDocument(prev => ({ ...prev, pageWidth: width, pageHeight: height }));
    }, [saveHistory]);
 
    // Extract content from shadow DOM and save to state
@@ -148,7 +154,7 @@ export default function DragAndDropBuilder() {
       clone.querySelectorAll('.drop-indicator').forEach(el => el.remove());
       clone.querySelectorAll('.page-break-spacer').forEach(el => el.remove());
 
-      setDocument(prev => ({ ...prev, content: clone.outerHTML }));
+      setEditorDocument(prev => ({ ...prev, content: clone.outerHTML }));
    }, []);
 
    // Calculate and display page breaks visually using overlay + margin approach
@@ -161,9 +167,9 @@ export default function DragAndDropBuilder() {
       const pageOverlay = shadow.querySelector('.page-overlay') as HTMLElement;
 
       if (!pagesContainer || !contentFlow || !pageOverlay) return;
-      if (document?.pageHeight?.unit === 'vh') return;
+      if (editorDocument?.pageHeight?.unit === 'vh') return;
 
-      const pageHeight = document.pageHeight?.value;
+      const pageHeight = editorDocument.pageHeight?.value;
       const pagePadding = 40;
       const pageGap = 20;
 
@@ -289,7 +295,7 @@ export default function DragAndDropBuilder() {
       if (pageIndicator) {
          pageIndicator.textContent = `${totalPages} page${totalPages !== 1 ? 's' : ''}`;
       }
-   }, [document.pageHeight?.value]);
+   }, [editorDocument.pageHeight?.value]);
 
    // Main render effect - renders content into shadow DOM
    useEffect(() => {
@@ -302,17 +308,17 @@ export default function DragAndDropBuilder() {
 
       const EditorStyles = EDITOR_STYLES({
          currentPageHeight: {
-            value: document?.pageHeight?.value,
-            unit: document?.pageHeight?.unit
+            value: editorDocument?.pageHeight?.value,
+            unit: editorDocument?.pageHeight?.unit
          }
       })
 
-      const containerFlowMinHeight = `calc(${document.pageHeight?.value}${document.pageHeight?.unit} - ${pagePadding * 2}px) !important`
+      const containerFlowMinHeight = `calc(${editorDocument.pageHeight?.value}${editorDocument.pageHeight?.unit} - ${pagePadding * 2}px) !important`
 
       // vh unit will be min-height and px unit will be height
-      const pagesContainerHeight = document.pageHeight?.unit === 'vh' ?
-         `min-height: ${document.pageHeight?.value}${document.pageHeight?.unit} !important`
-         : `height: ${document.pageHeight?.value}${document.pageHeight?.unit} !important`
+      const pagesContainerHeight = editorDocument.pageHeight?.unit === 'vh' ?
+         `min-height: ${editorDocument.pageHeight?.value}${editorDocument.pageHeight?.unit} !important`
+         : `height: ${editorDocument.pageHeight?.value}${editorDocument.pageHeight?.unit} !important`
 
       shadow.innerHTML = /*html*/`
          <style>
@@ -324,7 +330,7 @@ export default function DragAndDropBuilder() {
             }
 
             .document-header {
-               width: ${document.pageWidth?.value}${document.pageWidth?.unit};
+               width: ${editorDocument.pageWidth?.value}${editorDocument.pageWidth?.unit};
                margin: 0 auto 20px;
                font-size: 12px;
                color: #666;
@@ -334,7 +340,7 @@ export default function DragAndDropBuilder() {
 
             .pages-container {
                position: relative;
-               width: ${document.pageWidth?.value}${document.pageWidth?.unit};
+               width: ${editorDocument.pageWidth?.value}${editorDocument.pageWidth?.unit};
                margin: 0 auto;
                ${pagesContainerHeight};
                background: white;
@@ -417,13 +423,13 @@ export default function DragAndDropBuilder() {
          </style>
          <div class="pages-wrapper">
             <div class="document-header">
-               <span>${document.name}</span>
-               <span style="color: #999;">${document.pageWidth?.value}${document.pageWidth?.unit} × ${document.pageHeight?.value}${document.pageHeight?.unit}</span>
+               <span>${editorDocument.name}</span>
+               <span style="color: #999;">${editorDocument.pageWidth?.value}${editorDocument.pageWidth?.unit} × ${editorDocument.pageHeight?.value}${editorDocument.pageHeight?.unit}</span>
                <span class="page-count" style="color: #22c55e; font-weight: 500;">1 page</span>
             </div>
             <div class="pages-container">
                <div class="page-overlay"></div>
-               ${document.content}
+               ${editorDocument.content}
             </div>
          </div>
       `;
@@ -518,7 +524,6 @@ export default function DragAndDropBuilder() {
                      el.remove();
                      updateContentFromShadow();
                      setSelectedXPath(null);
-                     setSelectedElement(null);
                      requestAnimationFrame(calculatePageBreaks);
                   }
                } else if (action === 'duplicate') {
@@ -547,7 +552,6 @@ export default function DragAndDropBuilder() {
                mouseEvent.preventDefault();
                mouseEvent.stopPropagation();
                setSelectedXPath(xpath);
-               setSelectedElement(parentColumnContainer);
             }
             return;
          }
@@ -561,7 +565,6 @@ export default function DragAndDropBuilder() {
             target.classList.contains('page-break-spacer') ||
             target.closest('.page-break-spacer')) {
             setSelectedXPath(null);
-            setSelectedElement(null);
             return;
          }
 
@@ -571,7 +574,7 @@ export default function DragAndDropBuilder() {
                mouseEvent.preventDefault();
                mouseEvent.stopPropagation();
                setSelectedXPath(xpath);
-               setSelectedElement(target);
+
             }
             return;
          }
@@ -585,7 +588,6 @@ export default function DragAndDropBuilder() {
                }
                mouseEvent.stopPropagation();
                setSelectedXPath(xpath);
-               setSelectedElement(elementWithXPath);
             }
          }
       };
@@ -778,7 +780,6 @@ export default function DragAndDropBuilder() {
                   // }
                   const newXPath = generateXPath(dragged, container);
                   setSelectedXPath(newXPath);
-                  setSelectedElement(dragged);
                }
 
                updateContentFromShadow();
@@ -821,7 +822,6 @@ export default function DragAndDropBuilder() {
                   // }
                   const newXPath = generateXPath(dragged, container);
                   setSelectedXPath(newXPath);
-                  setSelectedElement(dragged);
                }
 
                updateContentFromShadow();
@@ -858,7 +858,7 @@ export default function DragAndDropBuilder() {
          pagesWrapper.removeEventListener('dragleave', handleDragLeave);
          pagesWrapper.removeEventListener('drop', handleDrop);
       };
-   }, [document, draggedComponent, saveHistory, updateContentFromShadow, calculatePageBreaks, editorKey, isPreviewMode, shadowReady]);
+   }, [editorDocument, draggedComponent, saveHistory, updateContentFromShadow, calculatePageBreaks, editorKey, isPreviewMode, shadowReady]);
 
    // Update selection highlight
    useEffect(() => {
@@ -871,10 +871,10 @@ export default function DragAndDropBuilder() {
          const el = shadow.querySelector(`[data-xpath="${selectedXPath}"]`);
          if (el) {
             el.setAttribute('data-selected', 'true');
-            setSelectedElement(el as HTMLElement);
+            setSelectedXPath(selectedXPath);
          }
       }
-   }, [selectedXPath, document]);
+   }, [selectedXPath, editorDocument]);
 
    // Element manipulation functions
    const updateContent = (value: string, isHtml: boolean = false): void => {
@@ -1000,7 +1000,6 @@ export default function DragAndDropBuilder() {
          el.remove();
          updateContentFromShadow();
          setSelectedXPath(null);
-         setSelectedElement(null);
          requestAnimationFrame(calculatePageBreaks);
       }
    };
@@ -1024,7 +1023,7 @@ export default function DragAndDropBuilder() {
       }
    }, [selectedXPath, saveHistory, updateContentFromShadow, calculatePageBreaks]);
 
-   const handleSidebarDragStart = (component: Component): void => {
+   const handleSidebarDragStart = (component: Block): void => {
       setDraggedComponent(component);
    };
 
@@ -1196,7 +1195,7 @@ export default function DragAndDropBuilder() {
 
    // Export
    const exportHTML = () => {
-      const cleanedContent = cleanContent(document.content);
+      const cleanedContent = cleanContent(editorDocument.content);
 
       const fullHtml = /*html*/`
          <!DOCTYPE html>
@@ -1204,16 +1203,16 @@ export default function DragAndDropBuilder() {
                <head>
                   <meta charset="UTF-8">
                   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                  <title>${document.name}</title>
+                  <title>${editorDocument.name}</title>
                   <style>
                      * { box-sizing: border-box; }
                         body { margin: 0; padding: 20px; font-family: system-ui, sans-serif; background: #f5f5f5; }
                         .document {
-                           width: ${document.pageWidth}px;
+                           width: ${editorDocument.pageWidth}px;
                            margin: 0 auto;
                            background: white;
                            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                           min-height: ${document.pageHeight}px;
+                           min-height: ${editorDocument.pageHeight}px;
                         }
                         @media print {
                            .document { box-shadow: none; margin: 0; }
@@ -1230,7 +1229,7 @@ export default function DragAndDropBuilder() {
       const url = URL.createObjectURL(blob);
       const a = window.document.createElement('a');
       a.href = url;
-      a.download = `${document.name.replace(/\s+/g, '-').toLowerCase()}.html`;
+      a.download = `${editorDocument.name.replace(/\s+/g, '-').toLowerCase()}.html`;
       a.click();
       URL.revokeObjectURL(url);
    };
@@ -1328,12 +1327,11 @@ export default function DragAndDropBuilder() {
             const bodyMatch = content.match(/<body[^>]*>([\s\S]*)<\/body>/i);
             const bodyContent = bodyMatch ? bodyMatch[1].trim() : content;
 
-            setDocument(prev => ({
+            setEditorDocument(prev => ({
                ...prev,
                content: /*html*/`<div class="content-flow" data-container="true" > ${bodyContent}</div > `
             }));
             setSelectedXPath(null);
-            setSelectedElement(null);
          }
       };
       reader.readAsText(file);
@@ -1396,10 +1394,10 @@ export default function DragAndDropBuilder() {
 
                   <PageSizeSettings
                      currentPage={{
-                        width: { value: document.pageWidth?.value, unit: document?.pageWidth?.unit },
-                        height: { value: document.pageHeight?.value, unit: document?.pageHeight?.unit },
-                        id: document.id,
-                        name: document.name,
+                        width: { value: editorDocument.pageWidth?.value, unit: editorDocument?.pageWidth?.unit },
+                        height: { value: editorDocument.pageHeight?.value, unit: editorDocument?.pageHeight?.unit },
+                        id: editorDocument.id,
+                        name: editorDocument.name,
                         html: ''
                      }}
                      onChangeSize={changePageSize}
@@ -1428,7 +1426,7 @@ export default function DragAndDropBuilder() {
                   <button
                      onClick={() => {
                         if (isPreviewMode) setEditorKey(k => k + 1);
-                        else { setSelectedXPath(null); setSelectedElement(null); }
+                        else { setSelectedXPath(null) }
                         setIsPreviewMode(!isPreviewMode);
                      }}
                      className={`flex items-center gap-2 px-4 py-2 rounded text-sm ${isPreviewMode ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'} `}
@@ -1442,8 +1440,8 @@ export default function DragAndDropBuilder() {
                      <input type="file" accept=".html,.htm" onChange={importHTML} className="hidden" />
                   </label>
                   <button onClick={() => exportPDF({
-                     name: document.name,
-                     content: document.content
+                     name: editorDocument.name,
+                     content: editorDocument.content
                   })} className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm">
                      <Download size={16} />
                      Export
@@ -1468,10 +1466,10 @@ export default function DragAndDropBuilder() {
                      <div
                         className="bg-white shadow-lg mx-auto"
                         style={{
-                           width: `${document.pageWidth.value}${document.pageWidth.unit} `,
-                           minHeight: `${(document.pageHeight?.value || 0) * pageCount}${document.pageHeight?.unit} `
+                           width: `${editorDocument.pageWidth.value}${editorDocument.pageWidth.unit} `,
+                           minHeight: `${(editorDocument.pageHeight?.value || 0) * pageCount}${editorDocument.pageHeight?.unit} `
                         }}
-                        dangerouslySetInnerHTML={{ __html: cleanContent(document.content) }}
+                        dangerouslySetInnerHTML={{ __html: cleanContent(editorDocument.content) }}
                      />
                   </div>
                ) : (
@@ -1504,7 +1502,7 @@ export default function DragAndDropBuilder() {
                      onCommitChanges={() => { saveHistory(); updateContentFromShadow(); }}
                      onDelete={deleteElement}
                      onDuplicate={duplicateElement}
-                     onClose={() => { setSelectedXPath(null); setSelectedElement(null); }}
+                     onClose={() => { setSelectedXPath(null) }}
                   />
                )}
             </div>

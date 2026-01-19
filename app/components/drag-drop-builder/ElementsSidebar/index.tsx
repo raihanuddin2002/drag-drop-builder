@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { CONTAINER_LAYOUTS, WIDGETS } from "../data";
-import { Component } from "../type";
+import { CONTAINER_LAYOUT_BLOCKS, COMPONENT_BLOCKS } from "../data";
+import { Block } from "../type";
 
 export interface ElementsSidebarProps {
-   onDragStart: (component: Component) => void;
+   onDragStart: (component: Block) => void;
    onDragEnd: () => void;
 }
 
@@ -36,16 +36,16 @@ export const ElementsSidebar: React.FC<ElementsSidebarProps> = ({ onDragStart, o
          <div className="flex-1 overflow-y-auto p-4">
             {activeTab === 'block' && (
                <div className="grid grid-cols-2 gap-3">
-                  {WIDGETS.map((widget) => (
+                  {COMPONENT_BLOCKS.map((block) => (
                      <div
-                        key={widget.id}
+                        key={block.id}
                         draggable
-                        onDragStart={() => onDragStart(widget)}
+                        onDragStart={() => onDragStart(block)}
                         onDragEnd={onDragEnd}
                         className="flex flex-col items-center justify-center p-4 border rounded-lg cursor-move hover:border-green-400 hover:bg-green-50 transition"
                      >
-                        <div className="text-gray-500 mb-2">{widget.icon}</div>
-                        <span className="text-sm text-gray-600">{widget.label}</span>
+                        <div className="text-gray-500 mb-2">{block.icon}</div>
+                        <span className="text-sm text-gray-600">{block.label}</span>
                      </div>
                   ))}
                </div>
@@ -53,7 +53,7 @@ export const ElementsSidebar: React.FC<ElementsSidebarProps> = ({ onDragStart, o
 
             {activeTab === 'container' && (
                <div className="space-y-3">
-                  {CONTAINER_LAYOUTS.map((layout) => (
+                  {CONTAINER_LAYOUT_BLOCKS.map((layout) => (
                      <div
                         key={layout.id}
                         draggable

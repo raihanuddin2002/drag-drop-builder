@@ -1,5 +1,5 @@
 import { Clock, Code, Image, Menu, Minus, Share2, Square, Type, Video } from "lucide-react";
-import { Component, Page, PagePreset } from "./type";
+import { Block, EditorPage, PagePreset } from "./type";
 
 export const NON_EDITABLE_TAGS = ['IMG', 'HR', 'BR', 'STYLE', 'SCRIPT', 'BODY', 'CANVAS', 'IFRAME', 'SPAN', 'B', 'I', 'STRONG', 'EM'];
 export const CONTAINER_TAGS = ['DIV', 'SECTION', 'ARTICLE', 'HEADER', 'FOOTER', 'NAV', 'ASIDE', 'MAIN'];
@@ -28,19 +28,19 @@ export const INITIAL_PAGE_HTML = (currentPage: Record<string, any>) => {
 // PAGE PRESETS
 // ============================================
 export const PAGE_PRESETS: PagePreset[] = [
-   { name: 'Full Size', width: { value: 100, unit: '%' }, height: { value: 100, unit: 'vh' } },
-   { name: 'Letter (8.5" x 11")', width: { value: 816, unit: 'px' }, height: { value: 1056, unit: 'px' } },
-   { name: 'Legal (8.5" x 14")', width: { value: 816, unit: 'px' }, height: { value: 1344, unit: 'px' } },
-   { name: 'A4', width: { value: 794, unit: 'px' }, height: { value: 1123, unit: 'px' } },
-   { name: 'Tabloid (11" x 17")', width: { value: 1056, unit: 'px' }, height: { value: 1632, unit: 'px' } },
-   { name: 'Instagram Post', width: { value: 1080, unit: 'px' }, height: { value: 1080, unit: 'px' } },
-   { name: 'Instagram Story', width: { value: 1080, unit: 'px' }, height: { value: 1920, unit: 'px' } },
-   { name: 'Facebook Cover', width: { value: 820, unit: 'px' }, height: { value: 312, unit: 'px' } },
-   { name: 'Presentation (16:9)', width: { value: 1920, unit: 'px' }, height: { value: 1080, unit: 'px' } },
+   { key: "full_size", name: 'Full Size', width: { value: 100, unit: '%' }, height: { value: 100, unit: 'vh' }, show: true },
+   { key: "letter", name: 'Letter (8.5" x 11")', width: { value: 816, unit: 'px' }, height: { value: 1056, unit: 'px' }, show: true },
+   { key: "legal", name: 'Legal (8.5" x 14")', width: { value: 816, unit: 'px' }, height: { value: 1344, unit: 'px' }, show: true },
+   { key: "a4", name: 'A4', width: { value: 794, unit: 'px' }, height: { value: 1123, unit: 'px' }, default: true, show: true },
+   { key: "tabloid", name: 'Tabloid (11" x 17")', width: { value: 1056, unit: 'px' }, height: { value: 1632, unit: 'px' }, show: true },
+   { key: "instagram_post", name: 'Instagram Post', width: { value: 1080, unit: 'px' }, height: { value: 1080, unit: 'px' }, show: false },
+   { key: "instagram_story", name: 'Instagram Story', width: { value: 1080, unit: 'px' }, height: { value: 1920, unit: 'px' }, show: false },
+   { key: "facebook_cover", name: 'Facebook Cover', width: { value: 820, unit: 'px' }, height: { value: 312, unit: 'px' }, show: false },
+   { key: "presentation", name: 'Presentation (16:9)', width: { value: 1920, unit: 'px' }, height: { value: 1080, unit: 'px' }, show: false },
 ];
 
 // Helper to wrap page content in full HTML document for export
-export const wrapPageInDocument = (page: Page, styles: string = ''): string => /* html */`
+export const wrapPageInDocument = (page: EditorPage, styles: string = ''): string => /* html */`
 <!DOCTYPE html>
    <html>
       <head>
@@ -75,7 +75,7 @@ export const wrapPageInDocument = (page: Page, styles: string = ''): string => /
 // WIDGET DEFINITIONS
 // ============================================
 
-export const WIDGETS: Component[] = [
+export const COMPONENT_BLOCKS: Block[] = [
    {
       id: 'image',
       label: 'Image',
@@ -94,7 +94,7 @@ export const WIDGETS: Component[] = [
       label: 'Text',
       icon: <Type size={20} />,
       category: 'blocks',
-      html: /* html */`<p style="margin: 0;">Add your text here.</p > `
+      html: /* html */`<p style='margin: 0px;'>Add your text here.</p > `
    },
    {
       id: 'button',
@@ -104,7 +104,7 @@ export const WIDGETS: Component[] = [
       html: /* html */`
          <a 
             href="#"
-            style="display: inline-block; padding: 12px 30px; background: #3b82f6; color: white; text-decoration: none; border-radius: 4px; margin: 10px 0;"
+            style='display: inline-block; padding: 12px 30px; background: #3b82f6; color: white; text-decoration: none; border-radius: 4px; margin: 10px 0;'
          >
             Click Me
          </a> 
@@ -115,68 +115,68 @@ export const WIDGETS: Component[] = [
       label: 'Spacer',
       icon: <Minus size={20} />,
       category: 'blocks',
-      html: /* html */`<div data-element-type="spacer" style="height: 40px;"></div > `
+      html: /* html */`<div data-element-type='spacer' style='height: 40px;'></div > `
    },
    {
       id: 'heading',
       label: 'Heading',
       icon: <Type size={20} />,
       category: 'blocks',
-      html: /* html */`<h2 style="color: #333; margin: 0;">New Heading</h2 > `
+      html: /* html */`<h2 style='color: #333; margin: 0;'>New Heading</h2 > `
    },
    {
       id: 'video',
       label: 'Video',
       icon: <Video size={20} />,
       category: 'blocks',
-      html: /* html */`<div style="background: #f0f0f0; padding: 40px; text-align: center; margin: 15px 0; border-radius: 4px;">Video Placeholder - Add embed code</div > `
+      html: /* html */`<div style='background: #f0f0f0; padding: 40px; text-align: center; margin: 15px 0; border-radius: 4px;'>Video Placeholder - Add embed code</div > `
    },
    {
       id: 'social',
       label: 'Social',
       icon: <Share2 size={20} />,
       category: 'blocks',
-      html: /* html */`<div style="text-align: center; padding: 15px; margin: 15px 0;">Social Icons Placeholder</div > `
+      html: /* html */`<div style='text-align: center; padding: 15px; margin: 15px 0;'>Social Icons Placeholder</div > `
    },
    {
       id: 'timer',
       label: 'Timer',
       icon: <Clock size={20} />,
       category: 'blocks',
-      html: /* html */`<div style="text-align: center; padding: 20px; background: #f9fafb; margin: 15px 0; border-radius: 4px;">Timer Widget Placeholder</div > `
+      html: /* html */`<div style='text-align: center; padding: 20px; background: #f9fafb; margin: 15px 0; border-radius: 4px;'>Timer Widget Placeholder</div > `
    },
    {
       id: 'menu',
       label: 'Menu',
       icon: <Menu size={20} />,
       category: 'blocks',
-      html: /* html */`<div style="text-align: center; padding: 15px; margin: 15px 0;">Menu Widget Placeholder</div > `
+      html: /* html */`<div style='text-align: center; padding: 15px; margin: 15px 0;'>Menu Widget Placeholder</div > `
    },
    {
       id: 'html',
       label: 'HTML',
       icon: <Code size={20} />,
       category: 'blocks',
-      html: /* html */`<div data-html-block="true" style="padding: 15px; background: #f5f5f5; margin: 15px 0; font-family: monospace; border-radius: 4px;">Custom HTML Block</div > `
+      html: /* html */`<div data-html-block='true' style='padding: 15px; background: #f5f5f5; margin: 15px 0; font-family: monospace; border-radius: 4px;'>Custom HTML Block</div > `
    },
    {
       id: 'divider',
       label: 'Divider',
       icon: <Minus size={20} />,
       category: 'blocks',
-      html: /* html */`<div class="editor-divider" style="border: none; height:2px; background: #e5e7eb; margin: 30px 0;"></div> `
+      html: /* html */`<div class='editor-divider' style='border: none; height:2px; background: #e5e7eb; margin: 30px 0;'></div> `
    },
 ];
 
-export const CONTAINER_LAYOUTS: Component[] = [
+export const CONTAINER_LAYOUT_BLOCKS: Block[] = [
    {
       id: '1col',
       label: '1 Column',
       icon: <Square size={20} />,
       category: 'container',
       html: /* html */`
-            <div style="display: flex; gap: 15px; margin: 10px 0;" data-column-container="true">
-                <div class="drop-zone" style="flex: 1; min-height: 100px;"></div>
+            <div style='display: flex; gap: 15px; margin: 10px 0;' data-column-container='true'>
+                <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
             </div>
         `
    },
@@ -186,9 +186,9 @@ export const CONTAINER_LAYOUTS: Component[] = [
       icon: <Square size={20} />,
       category: 'container',
       html: /* html */`
-         <div style="display: flex; gap: 15px; margin: 10px 0;" data-column-container="true">
-            <div class="drop-zone" style="flex: 1; min-height: 100px;"></div>
-            <div class="drop-zone" style="flex: 1; min-height: 100px;"></div>
+         <div style='display: flex; gap: 15px; margin: 10px 0;' data-column-container='true'>
+            <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
+            <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
          </div>
       `
    },
@@ -198,10 +198,10 @@ export const CONTAINER_LAYOUTS: Component[] = [
       icon: <Square size={20} />,
       category: 'container',
       html: /* html */`
-         <div style="display: flex; gap: 10px; margin:10px 0;" data-column-container="true">
-            <div class="drop-zone" style="flex: 1; padding: 10px; min-height: 100px;"></div>
-            <div class="drop-zone" style="flex: 1; padding: 10px; min-height: 100px;"></div>
-            <div class="drop-zone" style="flex: 1; padding: 10px; min-height: 100px;"></div>
+         <div style='display: flex; gap: 10px; margin:10px 0;' data-column-container='true'>
+            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
+            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
+            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
          </div>
       `
    },
@@ -211,11 +211,11 @@ export const CONTAINER_LAYOUTS: Component[] = [
       icon: <Square size={20} />,
       category: 'container',
       html: /* html */`
-         <div style="display: flex; gap: 10px; margin:10px 0;" data-column-container="true">
-            <div class="drop-zone" style="flex: 1; padding: 10px; min-height: 100px;"></div>
-            <div class="drop-zone" style="flex: 1; padding: 10px; min-height: 100px;"></div>
-            <div class="drop-zone" style="flex: 1; padding: 10px; min-height: 100px;"></div>
-            <div class="drop-zone" style="flex: 1; padding: 10px; min-height: 100px;"></div>
+         <div style='display: flex; gap: 10px; margin:10px 0;' data-column-container='true'>
+            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
+            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
+            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
+            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
          </div>
       `
    },
@@ -225,9 +225,9 @@ export const CONTAINER_LAYOUTS: Component[] = [
       icon: <Square size={20} />,
       category: 'container',
       html: /* html */`
-         <div style="display: flex; gap: 15px; margin:10px 0;" data-column-container="true">
-            <div class="drop-zone" style="flex: 1; min-height: 100px;"></div>
-            <div class="drop-zone" style="flex: 2; min-height: 100px;"></div>
+         <div style='display: flex; gap: 15px; margin:10px 0;' data-column-container='true'>
+            <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
+            <div class='drop-zone' style='flex: 2; min-height: 100px;'></div>
          </div>
       `
    },
@@ -237,9 +237,9 @@ export const CONTAINER_LAYOUTS: Component[] = [
       icon: <Square size={20} />,
       category: 'container',
       html: /* html */`
-         <div style="display: flex; gap: 15px; margin:10px 0;" data-column-container="true">
-            <div class="drop-zone" style="flex: 2; min-height: 100px;"></div>
-            <div class="drop-zone" style="flex: 1; min-height: 100px;"></div>
+         <div style='display: flex; gap: 15px; margin:10px 0;' data-column-container='true'>
+            <div class='drop-zone' style='flex: 2; min-height: 100px;'></div>
+            <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
          </div>
       `
    },

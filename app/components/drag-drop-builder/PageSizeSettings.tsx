@@ -1,26 +1,28 @@
 import { useEffect, useState } from "react";
 import { PAGE_PRESETS } from "./data";
-import { Height, Page, PagePreset, Width } from "./type";
+import { Height, EditorPage, PagePreset, Width } from "./type";
 import { ArrowLeftRight, ChevronDown, FileText } from "lucide-react";
 
 export type PageSizeSettingsProps = {
-   currentPage: Page;
+   currentPage: EditorPage;
    onChangeSize: ({ width, height }: { width: Width; height: Height }) => void;
 }
+
+export const defaultPagePreset = PAGE_PRESETS.find(p => p.default) || PAGE_PRESETS[0];
 
 export const PageSizeSettings: React.FC<PageSizeSettingsProps> = ({
    currentPage,
    onChangeSize,
 }) => {
    const [isOpen, setIsOpen] = useState(false);
-   const [customWidth, setCustomWidth] = useState<Width>({ value: 100, unit: '%' });
-   const [customHeight, setCustomHeight] = useState<Height>({ value: 100, unit: 'vh' });
+   const [customWidth, setCustomWidth] = useState<Width>(defaultPagePreset?.width);
+   const [customHeight, setCustomHeight] = useState<Height>(defaultPagePreset?.height);
 
    // Update local state when current page changes
    useEffect(() => {
       setCustomWidth({ value: currentPage.width.value, unit: currentPage.width.unit });
       setCustomHeight({ value: currentPage.height.value, unit: currentPage.height.unit });
-   }, [currentPage.width, currentPage.height]);
+   }, [currentPage.width.value, currentPage.height.value]);
 
    const getCurrentPresetName = () => {
       const preset = PAGE_PRESETS.find(
@@ -84,21 +86,23 @@ export const PageSizeSettings: React.FC<PageSizeSettingsProps> = ({
                   {/* Presets List */}
                   <div className="p-2 border-b max-h-60 overflow-y-auto">
                      <div className="text-xs font-medium text-gray-500 px-2 py-1">Page Size Presets</div>
-                     {PAGE_PRESETS.filter(p => p.name !== 'Custom').map((preset) => (
-                        <button
-                           key={preset.name}
-                           onClick={() => handlePresetSelect(preset)}
-                           className={`w-full px-2 py-2 text-left text-sm rounded hover:bg-gray-100 flex items-center justify-between ${currentPage.width.value === preset.width.value && currentPage.height.value === preset.height.value
-                              ? 'bg-green-50 text-green-700'
-                              : 'text-gray-700'
-                              }`}
-                        >
-                           <span>{preset.name}</span>
-                           <span className="text-xs text-gray-400">
-                              {preset.width.value}{preset.width.unit} x {preset.height.value}{preset.height.unit}
-                           </span>
-                        </button>
-                     ))}
+                     {PAGE_PRESETS
+                        .filter(p => p.name !== 'Custom' && p.show)
+                        .map((preset) => (
+                           <button
+                              key={preset.name}
+                              onClick={() => handlePresetSelect(preset)}
+                              className={`w-full px-2 py-2 text-left text-sm rounded hover:bg-gray-100 flex items-center justify-between ${currentPage.width.value === preset.width.value && currentPage.height.value === preset.height.value
+                                 ? 'bg-green-50 text-green-700'
+                                 : 'text-gray-700'
+                                 }`}
+                           >
+                              <span>{preset.name}</span>
+                              <span className="text-xs text-gray-400">
+                                 {preset.width.value}{preset.width.unit} x {preset.height.value}{preset.height.unit}
+                              </span>
+                           </button>
+                        ))}
                   </div>
 
                   {/* Custom Size */}

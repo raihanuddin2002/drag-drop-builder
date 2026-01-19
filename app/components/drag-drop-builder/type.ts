@@ -12,6 +12,15 @@ export type InlineLink = {
    index: number;
 }
 
+// MS Word-like document - single continuous content stream
+export type EditorDocument = {
+   id: string;
+   name: string;
+   pageWidth: Width;
+   pageHeight: Height;
+   content: string; // Single continuous HTML content
+}
+
 export type ElementInfo = {
    tag: string;
    styles: ElementStyles;
@@ -25,7 +34,7 @@ export type ElementInfo = {
    inlineLinks?: InlineLink[];
 }
 
-export type Component = {
+export type Block = {
    id: string;
    label: string;
    icon: JSX.Element;
@@ -43,7 +52,7 @@ export type Width = {
    unit: string;
 }
 
-export type Page = {
+export type EditorPage = {
    id: string;
    name: string;
    width: Width;
@@ -52,7 +61,10 @@ export type Page = {
 }
 
 export type PagePreset = {
+   key: string;
    name: string;
    width: Width;
    height: Height;
+   default?: boolean;
+   show: boolean;
 }

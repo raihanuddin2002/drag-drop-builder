@@ -1,9 +1,9 @@
 import { INITIAL_PAGE_HTML, NON_EDITABLE_TAGS } from "./data";
-import { ElementStyles, Page, PagePreset } from "./type";
+import { ElementStyles, EditorPage, PagePreset } from "./type";
 
 export const generatePageId = (): string => `page-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-export const createDefaultPage = (name: string = 'Page 1', preset?: PagePreset): Page => ({
+export const createDefaultPage = (name: string = 'Page 1', preset?: PagePreset): EditorPage => ({
    id: generatePageId(),
    name,
    width: { value: preset?.width?.value ?? 800, unit: preset?.width?.unit ?? 'px' },
@@ -25,6 +25,7 @@ export const generateXPath = (el: HTMLElement, root: HTMLElement): string => {
    const parentPath = generateXPath(parent, root);
    return parentPath ? `${parentPath}/${tag}[${index}]` : `/${tag}[${index}]`;
 };
+
 
 export const parseStyles = (styleStr: string): ElementStyles => {
    if (!styleStr) return {};
@@ -211,3 +212,16 @@ export const cleanElementForMigration = (element: HTMLElement): string => {
 
    return clone.outerHTML;
 };
+
+export function rafThrottle(fn: () => void) {
+   let rafId: number | null = null;
+
+   return () => {
+      if (rafId !== null) return;
+
+      rafId = requestAnimationFrame(() => {
+         rafId = null;
+         fn();
+      });
+   };
+}
