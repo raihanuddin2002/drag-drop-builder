@@ -28,15 +28,15 @@ export const INITIAL_PAGE_HTML = (currentPage: Record<string, any>) => {
 // PAGE PRESETS
 // ============================================
 export const PAGE_PRESETS: PagePreset[] = [
-   { name: 'Full Size', width: { value: 100, unit: '%' }, height: { value: 100, unit: 'vh' }, show: true },
-   { name: 'Letter (8.5" x 11")', width: { value: 816, unit: 'px' }, height: { value: 1056, unit: 'px' }, show: true },
-   { name: 'Legal (8.5" x 14")', width: { value: 816, unit: 'px' }, height: { value: 1344, unit: 'px' }, show: true },
-   { name: 'A4', width: { value: 794, unit: 'px' }, height: { value: 1123, unit: 'px' }, default: true, show: true },
-   { name: 'Tabloid (11" x 17")', width: { value: 1056, unit: 'px' }, height: { value: 1632, unit: 'px' }, show: true },
-   { name: 'Instagram Post', width: { value: 1080, unit: 'px' }, height: { value: 1080, unit: 'px' }, show: false },
-   { name: 'Instagram Story', width: { value: 1080, unit: 'px' }, height: { value: 1920, unit: 'px' }, show: false },
-   { name: 'Facebook Cover', width: { value: 820, unit: 'px' }, height: { value: 312, unit: 'px' }, show: false },
-   { name: 'Presentation (16:9)', width: { value: 1920, unit: 'px' }, height: { value: 1080, unit: 'px' }, show: false },
+   { key: "full_size", name: 'Full Size', width: { value: 100, unit: '%' }, height: { value: 100, unit: 'vh' }, show: true },
+   { key: "letter", name: 'Letter (8.5" x 11")', width: { value: 816, unit: 'px' }, height: { value: 1056, unit: 'px' }, show: true },
+   { key: "legal", name: 'Legal (8.5" x 14")', width: { value: 816, unit: 'px' }, height: { value: 1344, unit: 'px' }, show: true },
+   { key: "a4", name: 'A4', width: { value: 794, unit: 'px' }, height: { value: 1123, unit: 'px' }, default: true, show: true },
+   { key: "tabloid", name: 'Tabloid (11" x 17")', width: { value: 1056, unit: 'px' }, height: { value: 1632, unit: 'px' }, show: true },
+   { key: "instagram_post", name: 'Instagram Post', width: { value: 1080, unit: 'px' }, height: { value: 1080, unit: 'px' }, show: false },
+   { key: "instagram_story", name: 'Instagram Story', width: { value: 1080, unit: 'px' }, height: { value: 1920, unit: 'px' }, show: false },
+   { key: "facebook_cover", name: 'Facebook Cover', width: { value: 820, unit: 'px' }, height: { value: 312, unit: 'px' }, show: false },
+   { key: "presentation", name: 'Presentation (16:9)', width: { value: 1920, unit: 'px' }, height: { value: 1080, unit: 'px' }, show: false },
 ];
 
 // Helper to wrap page content in full HTML document for export

@@ -52,6 +52,7 @@ export type EditorPage = {
 }
 
 export type PagePreset = {
+   key: string;
    name: string;
    width: Width;
    height: Height;
