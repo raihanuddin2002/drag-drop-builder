@@ -16,14 +16,15 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import {
    Breakpoint,
    Block,
-   EditorDocument,
    ElementInfo,
+   EditorDocument,
    Height,
    Width
 } from "./type";
 import {
    EDITOR_STYLES,
    NON_EDITABLE_TAGS,
+   PAGE_PRESETS,
 } from "./data";
 import {
    generateXPath,
@@ -32,18 +33,21 @@ import {
 } from "./utils";
 import RichTextToolbar from "./RichEditorToolbar";
 import { ElementsSidebar } from "./ElementsSidebar";
-import { defaultPagePreset, PageSizeSettings } from "./PageSizeSettings";
+import { PageSizeSettings } from "./PageSizeSettings";
+
+const INITIAL_CONTENT = /*html*/`<div class="content-flow" data-container="true"></div>`;
 
 const generateDocId = () => `doc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+const defaultPagePreset = PAGE_PRESETS.find(p => p.default)!;
 
-export default function DragAndDropEditor() {
+export default function DragAndDropBuilder() {
    // Single document with continuous content (MS Word-like)
    const [editorDocument, setEditorDocument] = useState<EditorDocument>(() => ({
       id: generateDocId(),
-      name: generateDocId(),
-      pageWidth: defaultPagePreset?.width,
-      pageHeight: defaultPagePreset?.height,
-      content: /*html*/`<div class="content-flow" data-container="true"></div>`,
+      name: 'Untitled Document',
+      pageWidth: defaultPagePreset.width,
+      pageHeight: defaultPagePreset.height,
+      content: INITIAL_CONTENT,
    }));
 
    // Calculated page count based on content height
@@ -51,11 +55,10 @@ export default function DragAndDropEditor() {
 
    // Selection state
    const [selectedXPath, setSelectedXPath] = useState<string | null>(null);
-   const [selectedElement, setSelectedElement] = useState<HTMLElement | null>(null);
    const [breakpoint, setBreakpoint] = useState<Breakpoint>('desktop');
    const [draggedComponent, setDraggedComponent] = useState<Block | null>(null);
-   const [isPreviewMode, setIsPreviewMode] = useState(false);
-   const [editorKey, setEditorKey] = useState(0);
+   const [isPreviewMode, setIsPreviewMode] = useState<boolean>(false);
+   const [editorKey, setEditorKey] = useState<number>(0);
 
    // History for undo/redo
    const [history, setHistory] = useState<{ past: EditorDocument[]; future: EditorDocument[] }>({ past: [], future: [] });
@@ -83,10 +86,18 @@ export default function DragAndDropEditor() {
       }
    }, [isPreviewMode]);
 
+   // Get selected element from shadow DOM
+   const getSelectedElement = (): HTMLElement | null => {
+      const shadow = shadowRootRef.current;
+      if (!shadow || !selectedXPath) return null;
+
+      return shadow.querySelector(`[data-xpath="${selectedXPath}"]`) as HTMLElement | null;
+   };
+
    // Save history
    const saveHistory = useCallback(() => {
       setHistory(prev => ({
-         past: [...prev.past.slice(-10), editorDocument],
+         past: [...prev.past.slice(-50), editorDocument],
          future: []
       }));
    }, [editorDocument]);
@@ -147,145 +158,6 @@ export default function DragAndDropEditor() {
    }, []);
 
    // Calculate and display page breaks visually using overlay + margin approach
-   // const calculatePageBreaks = useCallback(() => {
-   //    const shadow = shadowRootRef.current;
-   //    if (!shadow) return;
-
-   //    const pagesContainer = shadow.querySelector('.pages-container') as HTMLElement;
-   //    const contentFlow = shadow.querySelector('.content-flow') as HTMLElement;
-   //    const pageOverlay = shadow.querySelector('.page-overlay') as HTMLElement;
-
-   //    if (!pagesContainer || !contentFlow || !pageOverlay) return;
-   //    if (editorDocument?.pageHeight?.unit === 'vh') return;
-
-   //    const pageHeight = editorDocument.pageHeight?.value;
-   //    const pagePadding = 40;
-   //    const pageGap = 20;
-
-   //    // Content area per page (minus padding top and padding bottom)
-   //    const usablePageHeight = pageHeight - (pagePadding * 2);
-
-   //    // Clear existing overlays and reset margins
-   //    pageOverlay.innerHTML = '';
-   //    contentFlow.querySelectorAll('[data-xpath]').forEach(el => {
-   //       (el as HTMLElement).style.removeProperty('margin-top');
-   //       (el as HTMLElement).removeAttribute('data-page-break-before');
-   //    });
-
-   //    // Get content elements
-   //    const getBlocks = () => {
-   //       const contentRect = contentFlow.getBoundingClientRect();
-   //       return Array.from(contentFlow.children)
-   //          .filter(el => el.hasAttribute('data-xpath'))
-   //          .map(el => {
-   //             const rect = el.getBoundingClientRect();
-   //             return {
-   //                el: el as HTMLElement,
-   //                top: rect.top - contentRect.top,
-   //                height: rect.height,
-   //                bottom: rect.top - contentRect.top + rect.height
-   //             };
-   //          });
-   //    };
-
-   //    // First pass: calculate content height without gaps
-   //    let blocks = getBlocks();
-   //    let contentHeight = 0;
-   //    if (blocks.length > 0) {
-   //       const lastBlock = blocks[blocks.length - 1];
-   //       contentHeight = lastBlock.bottom;
-   //    }
-
-   //    // Calculate number of pages needed
-   //    const totalPages = Math.max(1, Math.ceil(contentHeight / usablePageHeight));
-   //    setPageCount(totalPages);
-
-   //    // Add margins to elements at page breaks to push content down
-   //    if (totalPages > 1) {
-   //       let cumulativeOffset = 0;
-
-   //       for (let pageNum = 1; pageNum < totalPages; pageNum++) {
-   //          // Recalculate blocks after each margin addition
-   //          blocks = getBlocks();
-
-   //          // Where this page break should occur (accounting for previous gaps)
-   //          const breakPoint = (pageNum * usablePageHeight) + (cumulativeOffset);
-
-   //          // Find the first element that crosses or starts after the break point
-   //          let breakElement: HTMLElement | null = null;
-
-   //          for (const block of blocks) {
-   //             // If element starts after break point or crosses it, this is where we break
-   //             if (block.top >= breakPoint || (block.top < breakPoint && block.bottom > breakPoint)) {
-   //                breakElement = block.el;
-   //                break;
-   //             }
-   //          }
-
-   //          if (breakElement && !breakElement.hasAttribute('data-page-break-before')) {
-   //             // Calculate how much to push down
-   //             const blockRect = breakElement.getBoundingClientRect();
-   //             const contentRect = contentFlow.getBoundingClientRect();
-   //             const currentTop = blockRect.top - contentRect.top;
-
-   //             /* 
-   //                | Page 1 content
-   //                | (40px bottom padding)
-   //                |------------------  ← page break
-   //                | (20px page gap)
-   //                | (40px top padding)  ← now correct
-   //                | Page 2 content
-   //                * 1page end and 2nd page start should be same space -> targetTop (pagePadding * 2) added
-   //             */
-   //             const targetTop = breakPoint + pageGap + (pagePadding * 2);
-   //             const marginNeeded = targetTop - currentTop;
-
-   //             if (marginNeeded > 0) {
-   //                const existingMargin = parseFloat(window.getComputedStyle(breakElement).marginTop) || 0;
-   //                breakElement.style.marginTop = `${existingMargin + marginNeeded}px`;
-   //                breakElement.setAttribute('data-page-break-before', String(pageNum));
-   //                cumulativeOffset += pageGap;
-   //             }
-   //          }
-   //       }
-   //    }
-
-   //    // Render page break indicators in overlay
-   //    if (totalPages > 1) {
-   //       for (let i = 1; i < totalPages; i++) {
-   //          // Position at the actual page break location
-   //          const breakPosition = (i * usablePageHeight) + ((i - 1) * pageGap);
-
-   //          const pageGapDiv = window.document.createElement('div');
-   //          pageGapDiv.className = 'page-gap';
-   //          // 1page end and 2nd page start should be same space -> top = breakPosition + pagePadding
-   //          pageGapDiv.style.top = `${breakPosition + pagePadding}px`;
-   //          pageGapDiv.style.height = `${pageGap}px`; // between 2 page 
-   //          pageGapDiv.style.width = `100%`;
-
-   //          const gapLabel = window.document.createElement('div');
-   //          gapLabel.className = 'page-gap-label';
-   //          gapLabel.textContent = `Page ${i + 1}`;
-
-   //          // page gap with show as part of .page-overlay
-   //          pageGapDiv.appendChild(gapLabel);
-   //          pageOverlay.appendChild(pageGapDiv);
-
-   //       }
-   //    }
-
-   //    // Update container heights
-   //    const totalContainerHeight = (totalPages * pageHeight) + ((totalPages - 1) * pageGap);
-   //    pagesContainer.style.minHeight = `${totalContainerHeight}px`;
-   //    contentFlow.style.minHeight = `${totalContainerHeight - (pagePadding * 2)}px`;
-
-   //    // Update page count display
-   //    const pageIndicator = shadow.querySelector('.page-count');
-   //    if (pageIndicator) {
-   //       pageIndicator.textContent = `${totalPages} page${totalPages !== 1 ? 's' : ''}`;
-   //    }
-   // }, [editorDocument.pageHeight?.value]);
-
    const calculatePageBreaks = useCallback(() => {
       const shadow = shadowRootRef.current;
       if (!shadow) return;
@@ -297,120 +169,128 @@ export default function DragAndDropEditor() {
       if (!pagesContainer || !contentFlow || !pageOverlay) return;
       if (editorDocument?.pageHeight?.unit === 'vh') return;
 
-      const pageHeight = editorDocument.pageHeight.value;
+      const pageHeight = editorDocument.pageHeight?.value;
       const pagePadding = 40;
       const pageGap = 20;
-      const usablePageHeight = pageHeight - pagePadding * 2;
 
-      // Reset
+      // Content area per page (minus padding top and padding bottom)
+      const usablePageHeight = pageHeight - (pagePadding * 2);
+
+      // Clear existing overlays and reset margins
       pageOverlay.innerHTML = '';
-      const blocks = Array.from(contentFlow.children)
-         .filter(el => el.hasAttribute('data-xpath'))
-         .map(el => el as HTMLElement);
-
-      blocks.forEach(el => {
-         el.style.removeProperty('margin-top');
-         el.removeAttribute('data-page-break-before');
+      contentFlow.querySelectorAll('[data-xpath]').forEach(el => {
+         (el as HTMLElement).style.removeProperty('margin-top');
+         (el as HTMLElement).removeAttribute('data-page-break-before');
       });
 
-      if (!blocks.length) {
-         setPageCount(1);
-         return;
+      // Get content elements
+      const getBlocks = () => {
+         const contentRect = contentFlow.getBoundingClientRect();
+         return Array.from(contentFlow.children)
+            .filter(el => el.hasAttribute('data-xpath'))
+            .map(el => {
+               const rect = el.getBoundingClientRect();
+               return {
+                  el: el as HTMLElement,
+                  top: rect.top - contentRect.top,
+                  height: rect.height,
+                  bottom: rect.top - contentRect.top + rect.height
+               };
+            });
+      };
+
+      // First pass: calculate content height without gaps
+      let blocks = getBlocks();
+      let contentHeight = 0;
+      if (blocks.length > 0) {
+         const lastBlock = blocks[blocks.length - 1];
+         contentHeight = lastBlock.bottom;
       }
 
-      /* --------------------------------------------------
-         Measure once (DOM read phase)
-      -------------------------------------------------- */
-      const contentRect = contentFlow.getBoundingClientRect();
-      const measured = blocks.map(el => {
-         const rect = el.getBoundingClientRect();
-         return {
-            el,
-            height: rect.height,
-            initialTop: rect.top - contentRect.top,
-            marginTop: parseFloat(getComputedStyle(el).marginTop) || 0
-         };
-      });
-
-      /* --------------------------------------------------
-         Single pass layout simulation (O(n))
-      -------------------------------------------------- */
-      let cursorY = 0;
-      let currentPage = 1;
-      let cumulativeGapOffset = 0;
-
-      for (const block of measured) {
-         const blockTop = cursorY;
-         const blockBottom = blockTop + block.height;
-
-         const pageBottom =
-            currentPage * usablePageHeight + cumulativeGapOffset;
-
-         // Does this block cross the page boundary?
-         if (blockBottom > pageBottom) {
-            const targetTop = pageBottom + pageGap + pagePadding * 2;
-
-            const marginNeeded = targetTop - blockTop;
-
-            if (marginNeeded > 0) {
-               block.el.style.marginTop = `${block.marginTop + marginNeeded}px`;
-               block.el.setAttribute('data-page-break-before', String(currentPage));
-
-               cursorY += marginNeeded;
-               cumulativeGapOffset += pageGap;
-            }
-
-            currentPage++;
-         }
-
-         cursorY += block.height;
-      }
-
-      const totalPages = Math.max(
-         1,
-         Math.ceil(cursorY / usablePageHeight)
-      );
-
+      // Calculate number of pages needed
+      const totalPages = Math.max(1, Math.ceil(contentHeight / usablePageHeight));
       setPageCount(totalPages);
 
-      /* --------------------------------------------------
-         Render page gap overlays
-      -------------------------------------------------- */
-      for (let i = 1; i < totalPages; i++) {
-         const breakPosition =
-            i * usablePageHeight + (i - 1) * pageGap;
+      // Add margins to elements at page breaks to push content down
+      if (totalPages > 1) {
+         let cumulativeOffset = 0;
 
-         const pageGapDiv = window.document.createElement('div');
-         pageGapDiv.className = 'page-gap';
-         /* 
-            | Page 1 content
-            | (40px bottom padding)
-            |------------------  ← page break
-            | (20px page gap)
-            | (40px top padding)  ← now correct
-            | Page 2 content
-            * 1page end and 2nd page start should be same space -> targetTop (pagePadding * 2) added
-          */
-         pageGapDiv.style.top = `${breakPosition + (pagePadding * 2) + pageGap}px`;
-         pageGapDiv.style.height = `${pageGap}px`;
-         pageGapDiv.style.width = '100%';
+         for (let pageNum = 1; pageNum < totalPages; pageNum++) {
+            // Recalculate blocks after each margin addition
+            blocks = getBlocks();
 
-         const label = window.document.createElement('div');
-         label.className = 'page-gap-label';
-         label.textContent = `Page ${i + 1}`;
+            // Where this page break should occur (accounting for previous gaps)
+            const breakPoint = (pageNum * usablePageHeight) + (cumulativeOffset);
 
-         pageGapDiv.appendChild(label);
-         pageOverlay.appendChild(pageGapDiv);
+            // Find the first element that crosses or starts after the break point
+            let breakElement: HTMLElement | null = null;
+
+            for (const block of blocks) {
+               // If element starts after break point or crosses it, this is where we break
+               if (block.top >= breakPoint || (block.top < breakPoint && block.bottom > breakPoint)) {
+                  breakElement = block.el;
+                  break;
+               }
+            }
+
+            if (breakElement && !breakElement.hasAttribute('data-page-break-before')) {
+               // Calculate how much to push down
+               const blockRect = breakElement.getBoundingClientRect();
+               const contentRect = contentFlow.getBoundingClientRect();
+               const currentTop = blockRect.top - contentRect.top;
+
+               /* 
+                  | Page 1 content
+                  | (40px bottom padding)
+                  |------------------  ← page break
+                  | (20px page gap)
+                  | (40px top padding)  ← now correct
+                  | Page 2 content
+                  * 1page end and 2nd page start should be same space -> targetTop (pagePadding * 2) added
+               */
+               const targetTop = breakPoint + pageGap + (pagePadding * 2);
+               const marginNeeded = targetTop - currentTop;
+
+               if (marginNeeded > 0) {
+                  const existingMargin = parseFloat(window.getComputedStyle(breakElement).marginTop) || 0;
+                  breakElement.style.marginTop = `${existingMargin + marginNeeded}px`;
+                  breakElement.setAttribute('data-page-break-before', String(pageNum));
+                  cumulativeOffset += pageGap;
+               }
+            }
+         }
       }
 
-      /* --------------------------------------------------
-         Update container heights
-      -------------------------------------------------- */
-      const totalContainerHeight = totalPages * pageHeight + (totalPages - 1) * pageGap;
+      // Render page break indicators in overlay
+      if (totalPages > 1) {
+         for (let i = 1; i < totalPages; i++) {
+            // Position at the actual page break location
+            const breakPosition = (i * usablePageHeight) + ((i - 1) * pageGap);
 
+            const pageGapDiv = window.document.createElement('div');
+            pageGapDiv.className = 'page-gap';
+            // 1page end and 2nd page start should be same space -> top = breakPosition + pagePadding
+            pageGapDiv.style.top = `${breakPosition + pagePadding}px`;
+            pageGapDiv.style.height = `${pageGap}px`; // between 2 page 
+            pageGapDiv.style.width = `100%`;
+
+            const gapLabel = window.document.createElement('div');
+            gapLabel.className = 'page-gap-label';
+            gapLabel.textContent = `Page ${i + 1}`;
+
+            // page gap with show as part of .page-overlay
+            pageGapDiv.appendChild(gapLabel);
+            pageOverlay.appendChild(pageGapDiv);
+
+         }
+      }
+
+      // Update container heights
+      const totalContainerHeight = (totalPages * pageHeight) + ((totalPages - 1) * pageGap);
       pagesContainer.style.minHeight = `${totalContainerHeight}px`;
       contentFlow.style.minHeight = `${totalContainerHeight - (pagePadding * 2)}px`;
 
+      // Update page count display
       const pageIndicator = shadow.querySelector('.page-count');
       if (pageIndicator) {
          pageIndicator.textContent = `${totalPages} page${totalPages !== 1 ? 's' : ''}`;
@@ -644,7 +524,6 @@ export default function DragAndDropEditor() {
                      el.remove();
                      updateContentFromShadow();
                      setSelectedXPath(null);
-                     setSelectedElement(null);
                      requestAnimationFrame(calculatePageBreaks);
                   }
                } else if (action === 'duplicate') {
@@ -673,7 +552,6 @@ export default function DragAndDropEditor() {
                mouseEvent.preventDefault();
                mouseEvent.stopPropagation();
                setSelectedXPath(xpath);
-               setSelectedElement(parentColumnContainer);
             }
             return;
          }
@@ -687,7 +565,6 @@ export default function DragAndDropEditor() {
             target.classList.contains('page-break-spacer') ||
             target.closest('.page-break-spacer')) {
             setSelectedXPath(null);
-            setSelectedElement(null);
             return;
          }
 
@@ -697,7 +574,7 @@ export default function DragAndDropEditor() {
                mouseEvent.preventDefault();
                mouseEvent.stopPropagation();
                setSelectedXPath(xpath);
-               setSelectedElement(target);
+
             }
             return;
          }
@@ -711,7 +588,6 @@ export default function DragAndDropEditor() {
                }
                mouseEvent.stopPropagation();
                setSelectedXPath(xpath);
-               setSelectedElement(elementWithXPath);
             }
          }
       };
@@ -904,7 +780,6 @@ export default function DragAndDropEditor() {
                   // }
                   const newXPath = generateXPath(dragged, container);
                   setSelectedXPath(newXPath);
-                  setSelectedElement(dragged);
                }
 
                updateContentFromShadow();
@@ -947,7 +822,6 @@ export default function DragAndDropEditor() {
                   // }
                   const newXPath = generateXPath(dragged, container);
                   setSelectedXPath(newXPath);
-                  setSelectedElement(dragged);
                }
 
                updateContentFromShadow();
@@ -997,10 +871,10 @@ export default function DragAndDropEditor() {
          const el = shadow.querySelector(`[data-xpath="${selectedXPath}"]`);
          if (el) {
             el.setAttribute('data-selected', 'true');
-            setSelectedElement(el as HTMLElement);
+            setSelectedXPath(selectedXPath);
          }
       }
-   }, [selectedXPath]);
+   }, [selectedXPath, editorDocument]);
 
    // Element manipulation functions
    const updateContent = (value: string, isHtml: boolean = false): void => {
@@ -1126,7 +1000,6 @@ export default function DragAndDropEditor() {
          el.remove();
          updateContentFromShadow();
          setSelectedXPath(null);
-         setSelectedElement(null);
          requestAnimationFrame(calculatePageBreaks);
       }
    };
@@ -1150,9 +1023,8 @@ export default function DragAndDropEditor() {
       }
    }, [selectedXPath, saveHistory, updateContentFromShadow, calculatePageBreaks]);
 
-   const handleSidebarDragStart = (block: Block): void => {
-      console.log(block);
-      setDraggedComponent(block);
+   const handleSidebarDragStart = (component: Block): void => {
+      setDraggedComponent(component);
    };
 
    const handleSidebarDragEnd = (): void => {
@@ -1362,6 +1234,7 @@ export default function DragAndDropEditor() {
       URL.revokeObjectURL(url);
    };
 
+
    const exportPDF = async (doc: {
       name: string;
       content: string;
@@ -1382,45 +1255,45 @@ export default function DragAndDropEditor() {
 
       const pagePadding = '40px';
 
-      const html = /*html*/`
-         <!DOCTYPE html>
-         <html>
-            <head>
-               <style>
-                  @page { size: A4; margin: 0; }
-                  
-                  body { 
-                     margin: 0; 
-                     padding: 0; 
-                     width: 210mm; /* Strict A4 width */
-                  }
+      const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    @page { size: A4; margin: 0; }
+    
+    body { 
+      margin: 0; 
+      padding: 0; 
+      width: 210mm; /* Strict A4 width */
+    }
 
-                  .content-wrapper {
-                     width: 210mm;
-                     margin: 0 auto;
-                     /* This padding + the Playwright margin = your total UI padding */
-                     padding: 0 40px; 
-                  }
+    .content-wrapper {
+      width: 210mm;
+      margin: 0 auto;
+      /* This padding + the Playwright margin = your total UI padding */
+      padding: 0 40px; 
+    }
 
-                  /* Force your calculated breaks */
-                  [data-page-break-before] { 
-                     break-before: page; 
-                     page-break-before: always;
-                     /* Add back the top padding since Playwright margins moved the start point */
-                     margin-top: 20px !important; 
-                  }
+    /* Force your calculated breaks */
+    [data-page-break-before] { 
+      break-before: page; 
+      page-break-before: always;
+      /* Add back the top padding since Playwright margins moved the start point */
+      margin-top: 20px !important; 
+    }
 
-                  /* Keep blocks together */
-                  [data-xpath] { break-inside: avoid; }
-               </style>
-            </head>
-            <body>
-               <div class="content-wrapper">
-                  ${tempDiv.innerHTML}
-               </div>
-            </body>
-         </html>
-      `;
+    /* Keep blocks together */
+    [data-xpath] { break-inside: avoid; }
+  </style>
+</head>
+<body>
+  <div class="content-wrapper">
+    ${tempDiv.innerHTML}
+  </div>
+</body>
+</html>
+`;
 
       const res = await fetch('/api/export-pdf', {
          method: 'POST',
@@ -1459,7 +1332,6 @@ export default function DragAndDropEditor() {
                content: /*html*/`<div class="content-flow" data-container="true" > ${bodyContent}</div > `
             }));
             setSelectedXPath(null);
-            setSelectedElement(null);
          }
       };
       reader.readAsText(file);
@@ -1554,7 +1426,7 @@ export default function DragAndDropEditor() {
                   <button
                      onClick={() => {
                         if (isPreviewMode) setEditorKey(k => k + 1);
-                        else { setSelectedXPath(null); setSelectedElement(null); }
+                        else { setSelectedXPath(null) }
                         setIsPreviewMode(!isPreviewMode);
                      }}
                      className={`flex items-center gap-2 px-4 py-2 rounded text-sm ${isPreviewMode ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'} `}
@@ -1630,7 +1502,7 @@ export default function DragAndDropEditor() {
                      onCommitChanges={() => { saveHistory(); updateContentFromShadow(); }}
                      onDelete={deleteElement}
                      onDuplicate={duplicateElement}
-                     onClose={() => { setSelectedXPath(null); setSelectedElement(null); }}
+                     onClose={() => { setSelectedXPath(null) }}
                   />
                )}
             </div>

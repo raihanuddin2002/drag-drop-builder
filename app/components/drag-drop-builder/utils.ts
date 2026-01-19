@@ -26,6 +26,7 @@ export const generateXPath = (el: HTMLElement, root: HTMLElement): string => {
    return parentPath ? `${parentPath}/${tag}[${index}]` : `/${tag}[${index}]`;
 };
 
+
 export const parseStyles = (styleStr: string): ElementStyles => {
    if (!styleStr) return {};
    return styleStr.split(';').reduce((acc: ElementStyles, rule: string) => {
@@ -211,3 +212,16 @@ export const cleanElementForMigration = (element: HTMLElement): string => {
 
    return clone.outerHTML;
 };
+
+export function rafThrottle(fn: () => void) {
+   let rafId: number | null = null;
+
+   return () => {
+      if (rafId !== null) return;
+
+      rafId = requestAnimationFrame(() => {
+         rafId = null;
+         fn();
+      });
+   };
+}
