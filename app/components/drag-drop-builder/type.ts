@@ -34,7 +34,7 @@ export type ElementInfo = {
    inlineLinks?: InlineLink[];
 }
 
-export type Component = {
+export type Block = {
    id: string;
    label: string;
    icon: JSX.Element;

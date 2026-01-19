@@ -1,5 +1,5 @@
 import { Clock, Code, Image, Menu, Minus, Share2, Square, Type, Video } from "lucide-react";
-import { Component, EditorPage, PagePreset } from "./type";
+import { Block, EditorPage, PagePreset } from "./type";
 
 export const NON_EDITABLE_TAGS = ['IMG', 'HR', 'BR', 'STYLE', 'SCRIPT', 'BODY', 'CANVAS', 'IFRAME', 'SPAN', 'B', 'I', 'STRONG', 'EM'];
 export const CONTAINER_TAGS = ['DIV', 'SECTION', 'ARTICLE', 'HEADER', 'FOOTER', 'NAV', 'ASIDE', 'MAIN'];
@@ -75,7 +75,7 @@ export const wrapPageInDocument = (page: EditorPage, styles: string = ''): strin
 // WIDGET DEFINITIONS
 // ============================================
 
-export const WIDGETS: Component[] = [
+export const COMPONENT_BLOCKS: Block[] = [
    {
       id: 'image',
       label: 'Image',
@@ -168,7 +168,7 @@ export const WIDGETS: Component[] = [
    },
 ];
 
-export const CONTAINER_LAYOUTS: Component[] = [
+export const CONTAINER_LAYOUT_BLOCKS: Block[] = [
    {
       id: '1col',
       label: '1 Column',

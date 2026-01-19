@@ -15,7 +15,7 @@ import { SettingsPanel } from "./SettingsSidebar";
 import { useState, useCallback, useRef, useEffect } from "react";
 import {
    Breakpoint,
-   Component,
+   Block,
    EditorDocument,
    ElementInfo,
    Height,
@@ -55,7 +55,7 @@ export default function DragAndDropEditor() {
    const [selectedXPath, setSelectedXPath] = useState<string | null>(null);
    const [, setSelectedElement] = useState<HTMLElement | null>(null);
    const [breakpoint, setBreakpoint] = useState<Breakpoint>('desktop');
-   const [draggedComponent, setDraggedComponent] = useState<Component | null>(null);
+   const [draggedComponent, setDraggedComponent] = useState<Block | null>(null);
    const [isPreviewMode, setIsPreviewMode] = useState<boolean>(false);
    const [editorKey, setEditorKey] = useState<number>(0);
 
@@ -1021,8 +1021,8 @@ export default function DragAndDropEditor() {
       }
    }, [selectedXPath, saveHistory, updateContentFromShadow, calculatePageBreaks]);
 
-   const handleSidebarDragStart = (component: Component): void => {
-      setDraggedComponent(component);
+   const handleSidebarDragStart = (block: Block): void => {
+      setDraggedComponent(block);
    };
 
    const handleSidebarDragEnd = (): void => {
