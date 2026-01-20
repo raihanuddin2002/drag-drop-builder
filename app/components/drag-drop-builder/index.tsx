@@ -37,7 +37,7 @@ import {
 import RichTextToolbar from "./RichEditorToolbar";
 import { ElementsSidebar } from "./ElementsSidebar";
 import { PageSizeSettings } from "./PageSizeSettings";
-import html2pdf from "html2pdf.js";
+// html2pdf is imported dynamically to avoid "self is not defined" error during SSR
 
 const INITIAL_CONTENT = /*html*/`<div class="content-flow" data-container="true"></div>`;
 
@@ -1339,6 +1339,7 @@ export default function DragAndDropBuilder() {
          const filename = `${doc.name.replace(/\s+/g, "-").toLowerCase()}.pdf`;
 
          // Use the html2pdf builder API (more reliable than html2pdf(el, opts))
+         const html2pdf = (await import("html2pdf.js")).default;
          await (html2pdf() as any)
             .set({
                filename,
