@@ -1228,10 +1228,104 @@ export default function DragAndDropBuilder() {
       return { inlineCss: inlineCss.join("\n\n"), linkHrefs };
    }
 
+   // ---- Helper: Fix UL/OL markers for html2canvas/html2pdf ----
+   function fixListsForCanvas(root: HTMLElement) {
+      // 1) Remove native markers so html2canvas doesn't try to render them
+      root.querySelectorAll<HTMLElement>("ul, ol").forEach((list) => {
+         list.style.listStyleType = "none";
+         list.style.paddingLeft = "0px";
+         list.style.marginLeft = "0px";
+      });
+
+      // 2) UL => "disc" bullet
+      root.querySelectorAll<HTMLUListElement>("ul").forEach((ul) => {
+         // default margin by browser
+         ul.style.marginTop = '16px'
+         ul.style.marginBottom = '16px'
+
+         ul.querySelectorAll<HTMLLIElement>("li").forEach((li) => {
+            if (li.querySelector(":scope > .pdf-li-row")) return;
+
+            // Wrap existing content
+            const row = document.createElement("div");
+            row.className = "pdf-li-row";
+            row.style.display = "flex";
+            row.style.alignItems = "flex-start";
+            row.style.gap = "10px";
+
+            const marker = document.createElement("span");
+            marker.className = "pdf-ul-marker";
+            marker.textContent = "•";
+            marker.style.lineHeight = "inherit";
+            marker.style.flex = "0 0 auto";
+            marker.style.marginTop = "0px";
+
+            const content = document.createElement("div");
+            content.className = "pdf-li-content";
+            content.style.flex = "1 1 auto";
+            content.style.minWidth = "0"; // prevents overflow issues
+
+            // Move all LI children into content
+            while (li.firstChild) content.appendChild(li.firstChild);
+
+            row.appendChild(marker);
+            row.appendChild(content);
+
+            // Clear LI and insert row
+            li.appendChild(row);
+
+            // Indent like a normal list
+            li.style.marginLeft = "24px";
+         });
+      });
+
+      // 3) OL => "1. 2. 3." numbering per list
+      root.querySelectorAll<HTMLOListElement>("ol").forEach((ol) => {
+         // default margin by browser
+         ol.style.marginTop = '16px'
+         ol.style.marginBottom = '16px'
+
+         let i = 0;
+
+         Array.from(ol.children).forEach((child) => {
+            if (!(child instanceof HTMLLIElement)) return;
+            i++;
+
+            if (child.querySelector(":scope > .pdf-li-row")) return;
+
+            const row = document.createElement("div");
+            row.className = "pdf-li-row";
+            row.style.display = "flex";
+            row.style.alignItems = "flex-start";
+            row.style.gap = "10px";
+
+            const marker = document.createElement("span");
+            marker.className = "pdf-ol-marker";
+            marker.textContent = `${i}.`;
+            marker.style.lineHeight = "inherit";
+            marker.style.flex = "0 0 auto";
+
+            const content = document.createElement("div");
+            content.className = "pdf-li-content";
+            content.style.flex = "1 1 auto";
+            content.style.minWidth = "0";
+
+            while (child.firstChild) content.appendChild(child.firstChild);
+
+            row.appendChild(marker);
+            row.appendChild(content);
+            child.appendChild(row);
+
+            child.style.marginLeft = "24px";
+         });
+      });
+   }
+
    // Export PDF using html2pdf.js
    const exportPDFWithHtml2Pdf = async (
       doc: ExportDoc,
-      shadowRootRef: React.RefObject<ShadowRoot | null>
+      shadowRootRef: React.RefObject<ShadowRoot | null>,
+      editorDocument?: { pageWidth?: { value: number; unit: string } } // optional, for width
    ) => {
       const shadow = shadowRootRef.current;
       if (!shadow) throw new Error("Shadow root not ready");
@@ -1250,14 +1344,12 @@ export default function DragAndDropBuilder() {
          .forEach((el) => el.remove());
 
       // Restore original margin-top if you stored it
-      exportRoot
-         .querySelectorAll<HTMLElement>("[data-page-break-before], [data-xpath]")
-         .forEach((el) => {
-            if (el.dataset.pbOrigMt !== undefined) {
-               el.style.marginTop = el.dataset.pbOrigMt;
-               delete el.dataset.pbOrigMt;
-            }
-         });
+      exportRoot.querySelectorAll<HTMLElement>("[data-page-break-before], [data-xpath]").forEach((el) => {
+         if (el.dataset.pbOrigMt !== undefined) {
+            el.style.marginTop = el.dataset.pbOrigMt;
+            delete el.dataset.pbOrigMt;
+         }
+      });
 
       // Collect editor CSS from shadow root
       const { inlineCss, linkHrefs } = collectShadowStyles(shadow);
@@ -1274,52 +1366,68 @@ export default function DragAndDropBuilder() {
       host.style.pointerEvents = "none";
       host.style.zIndex = "-1";
 
-      // A4 width approximation at 96dpi (html2canvas uses px)
-      // (You can tweak this if your editor uses a specific width)
-      host.style.width = editorDocument?.pageWidth.value + editorDocument?.pageWidth.unit || "794px";
+      // Width: prefer your document width, else default A4-ish
+      host.style.width =
+         (editorDocument?.pageWidth?.value && editorDocument?.pageWidth?.unit
+            ? `${editorDocument.pageWidth.value}${editorDocument.pageWidth.unit}`
+            : "794px");
 
       const linkHrefsString = linkHrefs.map((href) => `<link rel="stylesheet" href="${href}">`).join("\n");
+
       // Build export DOM
-      host.innerHTML = /* html */`
-         ${linkHrefsString}
-         <style>
-            /* Ensure consistent box sizing */
-            *, *::before, *::after { box-sizing: border-box; }
+      host.innerHTML = /* html */ `
+    ${linkHrefsString}
+    <style>
+      /* Ensure consistent box sizing */
+      *, *::before, *::after { box-sizing: border-box; }
 
-            /* Bring your editor CSS */
-            ${inlineCss}
+      /* Bring your editor CSS */
+      ${inlineCss}
 
-            /* html2pdf DOES NOT respect @page margin well.
-               So simulate "page padding" by padding a wrapper. */
-            .pdf-page {
-               padding: 40px 40px 40px 40px;   /* no top padding */
-            }
+      /*
+        html2pdf DOES NOT respect @page margin reliably (canvas slicing).
+        So simulate per-page padding:
+        - wrapper has left/right/bottom padding
+        - every page start (our break marker) gets top padding
+      */
+      .pdf-page {
+        padding: 40px 40px 40px 40px; /* no top padding here */
+      }
 
-            /* Page breaks */
-            [data-page-break-before]{
-            break-before: page;
-            page-break-before: always;
+      /* Page breaks */
+      [data-page-break-before]{
+        break-before: page;
+        page-break-before: always;
 
-               /* THIS is the magic anothers pages top space*/
-               padding-top: 40px !important;
-            }
+        /* Per-page top padding for page 2+ */
+        padding-top: 40px !important;
+      }
 
-            [data-keep-together="true"]{
-            break-inside: avoid;
-            page-break-inside: avoid;
-            }
-         </style>
+      /* Keep together only when explicitly marked */
+      [data-keep-together="true"]{
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
 
-         <div class="pdf-page">
-            ${exportRoot.innerHTML}
-         </div>
-   `;
+      /* Small stability helpers */
+      img { max-width: 100%; }
+      li { margin: 2px 0; }
+      .pdf-ul-marker, .pdf-ol-marker { font-size: 1em; }
+    </style>
+
+    <div class="pdf-page">
+      ${exportRoot.innerHTML}
+    </div>
+  `;
 
       document.body.appendChild(host);
 
       try {
-         // Wait for fonts/images if your content has them (recommended)
-         // If you already have your own syncImages(), call it here instead.
+         // Fix UL/OL markers for canvas rendering
+         const pdfPage = host.querySelector(".pdf-page") as HTMLElement | null;
+         if (pdfPage) fixListsForCanvas(pdfPage);
+
+         // Wait for fonts/images (recommended)
          // @ts-ignore
          if (document.fonts?.ready) await (document as any).fonts.ready;
 
@@ -1338,25 +1446,28 @@ export default function DragAndDropBuilder() {
 
          const filename = `${doc.name.replace(/\s+/g, "-").toLowerCase()}.pdf`;
 
-         // Use the html2pdf builder API (more reliable than html2pdf(el, opts))
+         // Dynamic import to keep bundle smaller
          const html2pdf = (await import("html2pdf.js")).default;
+
          await (html2pdf() as any)
             .set({
                filename,
                margin: 0, // we use .pdf-page padding instead
                image: { type: "jpeg", quality: 0.98 },
                html2canvas: {
-                  scale: 2, // 2 is usually enough; 4 is heavy and slow
+                  scale: 2, // increase to 3/4 if you want sharper (slower)
                   useCORS: true,
                   backgroundColor: "#ffffff",
                },
                jsPDF: { unit: "pt", format: "a4", orientation: "portrait" },
+
+               // Typings may miss this; runtime supports it
                pagebreak: {
                   mode: ["css", "legacy"],
                   before: "[data-page-break-before]",
                   avoid: "[data-keep-together='true']",
                },
-            })
+            } as any)
             .from(host.querySelector(".pdf-page") as HTMLElement)
             .save();
       } finally {
