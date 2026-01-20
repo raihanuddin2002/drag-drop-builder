@@ -1200,82 +1200,125 @@ export default function DragAndDropBuilder() {
    };
 
 
-   const exportPDF = async (doc: {
+   type ExportDoc = {
       name: string;
-      content: string;
-      engine?: 'chromium' | 'firefox' | 'webkit';
-   }) => {
-      const tempDiv = window.document.createElement('div');
-      tempDiv.innerHTML = doc.content;
+      content: string; // full HTML string of your editor root snapshot
+      engine?: "chromium" | "firefox" | "webkit";
+   };
 
-      // 1. Remove ONLY the visual labels/overlays
-      tempDiv.querySelectorAll('.page-overlay, .page-gap-label').forEach(el => el.remove());
 
-      // 2. Keep the .page-gap divs but make them invisible 
-      // (This preserves the exact spacing you calculated)
-      tempDiv.querySelectorAll<HTMLElement>('.page-gap').forEach(el => {
-         el.style.backgroundColor = 'transparent';
-         el.style.border = 'none';
+   /**
+    * Collect CSS from the live editor shadow root (style tags + stylesheet links).
+    * This is what makes font-size/line-height/etc match.
+    */
+   function collectShadowStyles(shadow: ShadowRoot): { inlineCss: string; linkHrefs: string[] } {
+      const inlineCss: string[] = [];
+      const linkHrefs: string[] = [];
+
+      shadow.querySelectorAll("style").forEach((s) => {
+         inlineCss.push(s.textContent || "");
       });
 
-      const pagePadding = '40px';
+      shadow.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]').forEach((l) => {
+         if (l.href) linkHrefs.push(l.href);
+      });
 
-      const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <style>
-    @page { size: A4; margin: 0; }
-    
-    body { 
-      margin: 0; 
-      padding: 0; 
-      width: 210mm; /* Strict A4 width */
-    }
+      return { inlineCss: inlineCss.join("\n\n"), linkHrefs };
+   }
 
-    .content-wrapper {
-      width: 210mm;
-      margin: 0 auto;
-      /* This padding + the Playwright margin = your total UI padding */
-      padding: 0 40px; 
-    }
+   const exportPDF = async (doc: ExportDoc) => {
+      const shadow = shadowRootRef.current;
+      if (!shadow) throw new Error("Shadow root not ready");
 
-    /* Force your calculated breaks */
-    [data-page-break-before] { 
-      break-before: page; 
-      page-break-before: always;
-      /* Add back the top padding since Playwright margins moved the start point */
-      margin-top: 20px !important; 
-    }
+      // Parse snapshot
+      const tempDiv = document.createElement("div");
+      tempDiv.innerHTML = doc.content;
 
-    /* Keep blocks together */
-    [data-xpath] { break-inside: avoid; }
-  </style>
-</head>
-<body>
-  <div class="content-wrapper">
-    ${tempDiv.innerHTML}
-  </div>
-</body>
-</html>
-`;
+      // Prefer exporting ONLY the actual content (avoids wrapper CSS mismatch)
+      const contentFlow = tempDiv.querySelector(".content-flow") as HTMLElement | null;
+      const exportRoot = contentFlow ?? tempDiv;
 
-      const res = await fetch('/api/export-pdf', {
-         method: 'POST',
-         headers: { 'Content-Type': 'application/json' },
-         body: JSON.stringify({ html, title: doc.name, engine: doc.engine || 'chromium' }),
+      // Remove editor-only UI elements
+      exportRoot
+         .querySelectorAll(".page-overlay, .page-gap, .page-gap-label, .page-count, .element-toolbar")
+         .forEach((el) => el.remove());
+
+      // If you used Option B and stored original margin-top in data-pb-orig-mt, restore it
+      exportRoot.querySelectorAll<HTMLElement>("[data-page-break-before], [data-xpath]").forEach((el) => {
+         if (el.dataset.pbOrigMt !== undefined) {
+            el.style.marginTop = el.dataset.pbOrigMt; // restore original inline
+            delete el.dataset.pbOrigMt;
+         }
+      });
+
+      // Collect editor CSS from shadow root
+      const { inlineCss, linkHrefs } = collectShadowStyles(shadow);
+
+      // IMPORTANT:
+      // - Put padding on @page via margin: 40px (this is per-page padding in PDF)
+      // - Keep body margin 0 to avoid double spacing
+      const html = /* html */`<!DOCTYPE html>
+         <html>
+            <head>
+               <meta charset="utf-8" />
+
+               <!-- External stylesheets used by your editor (if any) -->
+               ${linkHrefs.map((href) => `<link rel="stylesheet" href="${href}">`).join("\n")}
+
+               <style>
+                  /* ====== PAGE PADDING (PER PAGE) ====== */
+                  @page { size: A4; margin: 40px; }
+
+                  html, body { margin: 0; padding: 0; }
+
+                  /* Use screen styles if your editor is screen-styled */
+                  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+
+                  /* If your editor depends on box sizing */
+                  *, *::before, *::after { box-sizing: border-box; }
+
+                  /* ====== YOUR EDITOR CSS (FROM SHADOW ROOT) ====== */
+                  ${inlineCss}
+
+                  /* ====== BREAKS ====== */
+                  [data-page-break-before]{
+                        break-before: page;
+                        page-break-before: always;
+                     }
+
+                     /* DO NOT apply break-inside: avoid to everything (causes big gaps).
+                        Only use it when explicitly marked. */
+                     [data-keep-together="true"]{
+                        break-inside: avoid;
+                        page-break-inside: avoid;
+                     }
+                  </style>
+            </head>
+            <body>
+               ${exportRoot.innerHTML}
+            </body>
+         </html>`;
+
+      const res = await fetch("/api/export-pdf", {
+         method: "POST",
+         headers: { "Content-Type": "application/json" },
+         body: JSON.stringify({
+            html,
+            title: doc.name,
+            engine: doc.engine || "chromium",
+         }),
       });
 
       if (!res.ok) {
-         const err = await res.json();
-         throw new Error(err.error || 'PDF export failed');
+         const err = await res.json().catch(() => ({}));
+         throw new Error(err.error || "PDF export failed");
       }
 
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      const a = window.document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
-      a.download = `${doc.name.replace(/\s+/g, '-').toLowerCase()}.pdf`;
+      a.download = `${doc.name.replace(/\s+/g, "-").toLowerCase()}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
    };
