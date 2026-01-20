@@ -37,6 +37,7 @@ import {
 import RichTextToolbar from "./RichEditorToolbar";
 import { ElementsSidebar } from "./ElementsSidebar";
 import { PageSizeSettings } from "./PageSizeSettings";
+import html2pdf from "html2pdf.js";
 
 const INITIAL_CONTENT = /*html*/`<div class="content-flow" data-container="true"></div>`;
 
@@ -51,6 +52,7 @@ export default function DragAndDropBuilder() {
       pageWidth: defaultPagePreset.width,
       pageHeight: defaultPagePreset.height,
       content: INITIAL_CONTENT,
+      pageFormat: defaultPagePreset?.key,
    }));
 
    // Calculated page count based on content height
@@ -1226,7 +1228,11 @@ export default function DragAndDropBuilder() {
       return { inlineCss: inlineCss.join("\n\n"), linkHrefs };
    }
 
-   const exportPDF = async (doc: ExportDoc) => {
+   // Export PDF using html2pdf.js
+   const exportPDFWithHtml2Pdf = async (
+      doc: ExportDoc,
+      shadowRootRef: React.RefObject<ShadowRoot | null>
+   ) => {
       const shadow = shadowRootRef.current;
       if (!shadow) throw new Error("Shadow root not ready");
 
@@ -1236,92 +1242,127 @@ export default function DragAndDropBuilder() {
 
       // Prefer exporting ONLY the actual content (avoids wrapper CSS mismatch)
       const contentFlow = tempDiv.querySelector(".content-flow") as HTMLElement | null;
-      const exportRoot = contentFlow ?? tempDiv;
+      const exportRoot = (contentFlow ?? tempDiv) as HTMLElement;
 
       // Remove editor-only UI elements
       exportRoot
          .querySelectorAll(".page-overlay, .page-gap, .page-gap-label, .page-count, .element-toolbar")
          .forEach((el) => el.remove());
 
-      // If you used Option B and stored original margin-top in data-pb-orig-mt, restore it
-      exportRoot.querySelectorAll<HTMLElement>("[data-page-break-before], [data-xpath]").forEach((el) => {
-         if (el.dataset.pbOrigMt !== undefined) {
-            el.style.marginTop = el.dataset.pbOrigMt; // restore original inline
-            delete el.dataset.pbOrigMt;
-         }
-      });
+      // Restore original margin-top if you stored it
+      exportRoot
+         .querySelectorAll<HTMLElement>("[data-page-break-before], [data-xpath]")
+         .forEach((el) => {
+            if (el.dataset.pbOrigMt !== undefined) {
+               el.style.marginTop = el.dataset.pbOrigMt;
+               delete el.dataset.pbOrigMt;
+            }
+         });
 
       // Collect editor CSS from shadow root
       const { inlineCss, linkHrefs } = collectShadowStyles(shadow);
 
-      // IMPORTANT:
-      // - Put padding on @page via margin: 40px (this is per-page padding in PDF)
-      // - Keep body margin 0 to avoid double spacing
-      const html = /* html */`<!DOCTYPE html>
-         <html>
-            <head>
-               <meta charset="utf-8" />
+      // --- Create offscreen export container (IMPORTANT: not display:none) ---
+      const host = document.createElement("div");
+      host.id = "pdf-export-host";
 
-               <!-- External stylesheets used by your editor (if any) -->
-               ${linkHrefs.map((href) => `<link rel="stylesheet" href="${href}">`).join("\n")}
+      // Keep it measurable but invisible
+      host.style.position = "fixed";
+      host.style.left = "-100000px";
+      host.style.top = "0";
+      host.style.visibility = "hidden";
+      host.style.pointerEvents = "none";
+      host.style.zIndex = "-1";
 
-               <style>
-                  /* ====== PAGE PADDING (PER PAGE) ====== */
-                  @page { size: A4; margin: 40px; }
+      // A4 width approximation at 96dpi (html2canvas uses px)
+      // (You can tweak this if your editor uses a specific width)
+      host.style.width = editorDocument?.pageWidth.value + editorDocument?.pageWidth.unit || "794px";
 
-                  html, body { margin: 0; padding: 0; }
+      const linkHrefsString = linkHrefs.map((href) => `<link rel="stylesheet" href="${href}">`).join("\n");
+      // Build export DOM
+      host.innerHTML = /* html */`
+         ${linkHrefsString}
+         <style>
+            /* Ensure consistent box sizing */
+            *, *::before, *::after { box-sizing: border-box; }
 
-                  /* Use screen styles if your editor is screen-styled */
-                  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+            /* Bring your editor CSS */
+            ${inlineCss}
 
-                  /* If your editor depends on box sizing */
-                  *, *::before, *::after { box-sizing: border-box; }
+            /* html2pdf DOES NOT respect @page margin well.
+               So simulate "page padding" by padding a wrapper. */
+            .pdf-page {
+               padding: 40px 40px 40px 40px;   /* no top padding */
+            }
 
-                  /* ====== YOUR EDITOR CSS (FROM SHADOW ROOT) ====== */
-                  ${inlineCss}
+            /* Page breaks */
+            [data-page-break-before]{
+            break-before: page;
+            page-break-before: always;
 
-                  /* ====== BREAKS ====== */
-                  [data-page-break-before]{
-                        break-before: page;
-                        page-break-before: always;
-                     }
+               /* THIS is the magic anothers pages top space*/
+               padding-top: 40px !important;
+            }
 
-                     /* DO NOT apply break-inside: avoid to everything (causes big gaps).
-                        Only use it when explicitly marked. */
-                     [data-keep-together="true"]{
-                        break-inside: avoid;
-                        page-break-inside: avoid;
-                     }
-                  </style>
-            </head>
-            <body>
-               ${exportRoot.innerHTML}
-            </body>
-         </html>`;
+            [data-keep-together="true"]{
+            break-inside: avoid;
+            page-break-inside: avoid;
+            }
+         </style>
 
-      const res = await fetch("/api/export-pdf", {
-         method: "POST",
-         headers: { "Content-Type": "application/json" },
-         body: JSON.stringify({
-            html,
-            title: doc.name,
-            engine: doc.engine || "chromium",
-         }),
-      });
+         <div class="pdf-page">
+            ${exportRoot.innerHTML}
+         </div>
+   `;
 
-      if (!res.ok) {
-         const err = await res.json().catch(() => ({}));
-         throw new Error(err.error || "PDF export failed");
+      document.body.appendChild(host);
+
+      try {
+         // Wait for fonts/images if your content has them (recommended)
+         // If you already have your own syncImages(), call it here instead.
+         // @ts-ignore
+         if (document.fonts?.ready) await (document as any).fonts.ready;
+
+         const imgs = Array.from(host.querySelectorAll("img"));
+         await Promise.all(
+            imgs.map(
+               (img) =>
+                  img.complete
+                     ? Promise.resolve()
+                     : new Promise<void>((res) => {
+                        img.onload = () => res();
+                        img.onerror = () => res();
+                     })
+            )
+         );
+
+         const filename = `${doc.name.replace(/\s+/g, "-").toLowerCase()}.pdf`;
+
+         // Use the html2pdf builder API (more reliable than html2pdf(el, opts))
+         await (html2pdf() as any)
+            .set({
+               filename,
+               margin: 0, // we use .pdf-page padding instead
+               image: { type: "jpeg", quality: 0.98 },
+               html2canvas: {
+                  scale: 2, // 2 is usually enough; 4 is heavy and slow
+                  useCORS: true,
+                  backgroundColor: "#ffffff",
+               },
+               jsPDF: { unit: "pt", format: "a4", orientation: "portrait" },
+               pagebreak: {
+                  mode: ["css", "legacy"],
+                  before: "[data-page-break-before]",
+                  avoid: "[data-keep-together='true']",
+               },
+            })
+            .from(host.querySelector(".pdf-page") as HTMLElement)
+            .save();
+      } finally {
+         host.remove();
       }
-
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${doc.name.replace(/\s+/g, "-").toLowerCase()}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
    };
+
 
    const importHTML = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -1447,12 +1488,10 @@ export default function DragAndDropBuilder() {
                      Import
                      <input type="file" accept=".html,.htm" onChange={importHTML} className="hidden" />
                   </label>
-                  <button onClick={() => exportPDF({
-                     name: editorDocument.name,
-                     content: editorDocument.content
-                  })} className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm">
+
+                  <button onClick={() => exportPDFWithHtml2Pdf(editorDocument, shadowRootRef)} className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm">
                      <Download size={16} />
-                     Export
+                     Export PDF
                   </button>
                </div>
             </div>
