@@ -12,7 +12,7 @@ import {
    Upload
 } from "lucide-react";
 import { SettingsPanel } from "./SettingsSidebar";
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import {
    Breakpoint,
    Block,
@@ -27,13 +27,17 @@ import {
    PAGE_PRESETS,
 } from "./data";
 import {
+   applyPaginationMargin,
    generateXPath,
    isEditableElement,
-   parseStyles
+   parseStyles,
+   rafThrottle,
+   resetPaginationStyling
 } from "./utils";
 import RichTextToolbar from "./RichEditorToolbar";
 import { ElementsSidebar } from "./ElementsSidebar";
 import { PageSizeSettings } from "./PageSizeSettings";
+// html2pdf is imported dynamically to avoid "self is not defined" error during SSR
 
 const INITIAL_CONTENT = /*html*/`<div class="content-flow" data-container="true"></div>`;
 
@@ -48,6 +52,7 @@ export default function DragAndDropBuilder() {
       pageWidth: defaultPagePreset.width,
       pageHeight: defaultPagePreset.height,
       content: INITIAL_CONTENT,
+      pageFormat: defaultPagePreset?.key,
    }));
 
    // Calculated page count based on content height
@@ -161,141 +166,100 @@ export default function DragAndDropBuilder() {
    const calculatePageBreaks = useCallback(() => {
       const shadow = shadowRootRef.current;
       if (!shadow) return;
+      if (editorDocument?.pageHeight?.unit === "vh") return;
 
-      const pagesContainer = shadow.querySelector('.pages-container') as HTMLElement;
-      const contentFlow = shadow.querySelector('.content-flow') as HTMLElement;
-      const pageOverlay = shadow.querySelector('.page-overlay') as HTMLElement;
-
+      const pagesContainer = shadow.querySelector(".pages-container") as HTMLElement | null;
+      const contentFlow = shadow.querySelector(".content-flow") as HTMLElement | null;
+      const pageOverlay = shadow.querySelector(".page-overlay") as HTMLElement | null;
       if (!pagesContainer || !contentFlow || !pageOverlay) return;
-      if (editorDocument?.pageHeight?.unit === 'vh') return;
 
-      const pageHeight = editorDocument.pageHeight?.value;
-      const pagePadding = 40;
-      const pageGap = 20;
+      const PAGE_H = editorDocument?.pageHeight?.value ?? 0;
+      if (!PAGE_H) return;
 
-      // Content area per page (minus padding top and padding bottom)
-      const usablePageHeight = pageHeight - (pagePadding * 2);
+      const PADDING = 40;
+      const GAP = 20;
+      const USABLE_H = PAGE_H - (PADDING * 2);
 
-      // Clear existing overlays and reset margins
-      pageOverlay.innerHTML = '';
-      contentFlow.querySelectorAll('[data-xpath]').forEach(el => {
-         (el as HTMLElement).style.removeProperty('margin-top');
-         (el as HTMLElement).removeAttribute('data-page-break-before');
+      // Blocks you paginate
+      const blocks = Array.from(contentFlow.children).filter(el =>
+         (el as HTMLElement).hasAttribute("data-xpath")
+      ) as HTMLElement[];
+
+      // 0) Cleanup ONLY what pagination added (do not nuke styles)
+      pageOverlay.innerHTML = "";
+      for (const el of blocks) resetPaginationStyling(el);
+
+      if (blocks.length === 0) {
+         setPageCount(1);
+         pagesContainer.style.minHeight = `${PAGE_H}px`;
+         return;
+      }
+
+      // 1) Measure once
+      const flowRect = contentFlow.getBoundingClientRect();
+      const metrics = blocks.map(el => {
+         const r = el.getBoundingClientRect();
+         return { el, top: r.top - flowRect.top, height: r.height };
       });
 
-      // Get content elements
-      const getBlocks = () => {
-         const contentRect = contentFlow.getBoundingClientRect();
-         return Array.from(contentFlow.children)
-            .filter(el => el.hasAttribute('data-xpath'))
-            .map(el => {
-               const rect = el.getBoundingClientRect();
-               return {
-                  el: el as HTMLElement,
-                  top: rect.top - contentRect.top,
-                  height: rect.height,
-                  bottom: rect.top - contentRect.top + rect.height
-               };
-            });
-      };
+      // 2) Single scan, no drift
+      let pageIndex = 1;
+      let shift = 0;
+      const gapTops: number[] = [];
 
-      // First pass: calculate content height without gaps
-      let blocks = getBlocks();
-      let contentHeight = 0;
-      if (blocks.length > 0) {
-         const lastBlock = blocks[blocks.length - 1];
-         contentHeight = lastBlock.bottom;
+      const pageBoxTop = (p: number) => (p - 1) * (PAGE_H + GAP);
+      const pageContentTop = (p: number) => pageBoxTop(p) + PADDING;
+
+      for (const m of metrics) {
+         const simTop = m.top + shift;
+         const usedInPage = simTop - pageContentTop(pageIndex);
+
+         if (usedInPage + m.height > USABLE_H && usedInPage > 0) {
+            const nextPage = pageIndex + 1;
+            const targetTop = pageContentTop(nextPage);
+            const add = targetTop - simTop;
+
+            if (add > 0) {
+               applyPaginationMargin(m.el, add);
+               m.el.setAttribute("data-page-break-before", String(pageIndex));
+
+               shift += add;
+               gapTops.push(pageBoxTop(pageIndex) + PAGE_H);
+               pageIndex = nextPage;
+            }
+         }
       }
 
-      // Calculate number of pages needed
-      const totalPages = Math.max(1, Math.ceil(contentHeight / usablePageHeight));
+      const totalPages = pageIndex;
       setPageCount(totalPages);
 
-      // Add margins to elements at page breaks to push content down
-      if (totalPages > 1) {
-         let cumulativeOffset = 0;
-
-         for (let pageNum = 1; pageNum < totalPages; pageNum++) {
-            // Recalculate blocks after each margin addition
-            blocks = getBlocks();
-
-            // Where this page break should occur (accounting for previous gaps)
-            const breakPoint = (pageNum * usablePageHeight) + (cumulativeOffset);
-
-            // Find the first element that crosses or starts after the break point
-            let breakElement: HTMLElement | null = null;
-
-            for (const block of blocks) {
-               // If element starts after break point or crosses it, this is where we break
-               if (block.top >= breakPoint || (block.top < breakPoint && block.bottom > breakPoint)) {
-                  breakElement = block.el;
-                  break;
-               }
-            }
-
-            if (breakElement && !breakElement.hasAttribute('data-page-break-before')) {
-               // Calculate how much to push down
-               const blockRect = breakElement.getBoundingClientRect();
-               const contentRect = contentFlow.getBoundingClientRect();
-               const currentTop = blockRect.top - contentRect.top;
-
-               /* 
-                  | Page 1 content
-                  | (40px bottom padding)
-                  |------------------  ← page break
-                  | (20px page gap)
-                  | (40px top padding)  ← now correct
-                  | Page 2 content
-                  * 1page end and 2nd page start should be same space -> targetTop (pagePadding * 2) added
-               */
-               const targetTop = breakPoint + pageGap + (pagePadding * 2);
-               const marginNeeded = targetTop - currentTop;
-
-               if (marginNeeded > 0) {
-                  const existingMargin = parseFloat(window.getComputedStyle(breakElement).marginTop) || 0;
-                  breakElement.style.marginTop = `${existingMargin + marginNeeded}px`;
-                  breakElement.setAttribute('data-page-break-before', String(pageNum));
-                  cumulativeOffset += pageGap;
-               }
-            }
-         }
+      // 3) Overlay
+      if (gapTops.length) {
+         const frag = document.createDocumentFragment();
+         gapTops.forEach((top, idx) => {
+            const gap = document.createElement("div");
+            gap.className = "page-gap";
+            gap.style.cssText = `
+               position:absolute; left:0; width:100%;
+               top:${top}px; height:${GAP}px;
+               pointer-events:none;
+               display:flex; align-items:center; justify-content:center;
+            `;
+            const label = document.createElement("div");
+            label.className = "page-gap-label";
+            label.textContent = `Page ${idx + 2}`;
+            gap.appendChild(label);
+            frag.appendChild(gap);
+         });
+         pageOverlay.appendChild(frag);
       }
 
-      // Render page break indicators in overlay
-      if (totalPages > 1) {
-         for (let i = 1; i < totalPages; i++) {
-            // Position at the actual page break location
-            const breakPosition = (i * usablePageHeight) + ((i - 1) * pageGap);
+      // 4) Height
+      pagesContainer.style.minHeight = `${(totalPages * PAGE_H) + ((totalPages - 1) * GAP)}px`;
 
-            const pageGapDiv = window.document.createElement('div');
-            pageGapDiv.className = 'page-gap';
-            // 1page end and 2nd page start should be same space -> top = breakPosition + pagePadding
-            pageGapDiv.style.top = `${breakPosition + pagePadding}px`;
-            pageGapDiv.style.height = `${pageGap}px`; // between 2 page 
-            pageGapDiv.style.width = `100%`;
+   }, [editorDocument?.pageHeight?.value, editorDocument?.pageHeight?.unit, setPageCount]);
 
-            const gapLabel = window.document.createElement('div');
-            gapLabel.className = 'page-gap-label';
-            gapLabel.textContent = `Page ${i + 1}`;
-
-            // page gap with show as part of .page-overlay
-            pageGapDiv.appendChild(gapLabel);
-            pageOverlay.appendChild(pageGapDiv);
-
-         }
-      }
-
-      // Update container heights
-      const totalContainerHeight = (totalPages * pageHeight) + ((totalPages - 1) * pageGap);
-      pagesContainer.style.minHeight = `${totalContainerHeight}px`;
-      contentFlow.style.minHeight = `${totalContainerHeight - (pagePadding * 2)}px`;
-
-      // Update page count display
-      const pageIndicator = shadow.querySelector('.page-count');
-      if (pageIndicator) {
-         pageIndicator.textContent = `${totalPages} page${totalPages !== 1 ? 's' : ''}`;
-      }
-   }, [editorDocument.pageHeight?.value]);
+   const calculatePageBreaksRAF = useMemo(() => rafThrottle(calculatePageBreaks), [calculatePageBreaks]);
 
    // Main render effect - renders content into shadow DOM
    useEffect(() => {
@@ -500,7 +464,7 @@ export default function DragAndDropBuilder() {
       addXPathData(contentFlow);
 
       // Calculate page breaks after render
-      requestAnimationFrame(calculatePageBreaks);
+      calculatePageBreaksRAF();
 
       // Click handler
       const handleClick = (e: Event) => {
@@ -524,7 +488,7 @@ export default function DragAndDropBuilder() {
                      el.remove();
                      updateContentFromShadow();
                      setSelectedXPath(null);
-                     requestAnimationFrame(calculatePageBreaks);
+                     calculatePageBreaksRAF();
                   }
                } else if (action === 'duplicate') {
                   const el = shadow.querySelector(`[data-xpath="${xpath}"]`) as HTMLElement;
@@ -535,7 +499,7 @@ export default function DragAndDropBuilder() {
                      clone.removeAttribute('data-selected');
                      el.parentNode?.insertBefore(clone, el.nextSibling);
                      updateContentFromShadow();
-                     requestAnimationFrame(calculatePageBreaks);
+                     calculatePageBreaksRAF();
                   }
                }
             }
@@ -598,7 +562,7 @@ export default function DragAndDropBuilder() {
          if (target.hasAttribute('contenteditable') && target.hasAttribute('data-xpath')) {
             saveHistory();
             updateContentFromShadow();
-            requestAnimationFrame(calculatePageBreaks);
+            calculatePageBreaksRAF();
          }
       };
 
@@ -612,12 +576,12 @@ export default function DragAndDropBuilder() {
          window.document.execCommand('insertText', false, plainText);
          saveHistory();
          updateContentFromShadow();
-         requestAnimationFrame(calculatePageBreaks);
+         calculatePageBreaksRAF();
       };
 
       // Input handler - live page recalculation
       const handleInput = () => {
-         requestAnimationFrame(calculatePageBreaks);
+         calculatePageBreaksRAF();
       };
 
       pagesWrapper.addEventListener('click', handleClick);
@@ -755,7 +719,7 @@ export default function DragAndDropBuilder() {
                dropIndicator.remove();
                setDraggedComponent(null);
                updateContentFromShadow();
-               requestAnimationFrame(calculatePageBreaks);
+               calculatePageBreaksRAF();
                return;
             } else if (dragged) {
                // reordering elements
@@ -783,7 +747,8 @@ export default function DragAndDropBuilder() {
                }
 
                updateContentFromShadow();
-               requestAnimationFrame(calculatePageBreaks);
+               calculatePageBreaksRAF();
+
                return;
             }
          }
@@ -799,7 +764,8 @@ export default function DragAndDropBuilder() {
                dropZone.insertAdjacentHTML('beforeend', draggedComponent.html);
                setDraggedComponent(null);
                updateContentFromShadow();
-               requestAnimationFrame(calculatePageBreaks);
+               calculatePageBreaksRAF();
+
                return;
             } else if (dragged && !dropZone.contains(dragged)) {
                saveHistory();
@@ -825,7 +791,8 @@ export default function DragAndDropBuilder() {
                }
 
                updateContentFromShadow();
-               requestAnimationFrame(calculatePageBreaks);
+               calculatePageBreaksRAF();
+
                return;
             }
          }
@@ -858,7 +825,7 @@ export default function DragAndDropBuilder() {
          pagesWrapper.removeEventListener('dragleave', handleDragLeave);
          pagesWrapper.removeEventListener('drop', handleDrop);
       };
-   }, [editorDocument, draggedComponent, saveHistory, updateContentFromShadow, calculatePageBreaks, editorKey, isPreviewMode, shadowReady]);
+   }, [editorDocument, draggedComponent, saveHistory, updateContentFromShadow, calculatePageBreaksRAF, editorKey, isPreviewMode, shadowReady]);
 
    // Update selection highlight
    useEffect(() => {
@@ -909,7 +876,7 @@ export default function DragAndDropBuilder() {
             el.textContent = value;
          }
          updateContentFromShadow();
-         requestAnimationFrame(calculatePageBreaks);
+         calculatePageBreaksRAF();
       }
    };
 
@@ -923,7 +890,7 @@ export default function DragAndDropBuilder() {
          (el.style as any)[prop] = value;
          if (!livePreview) {
             updateContentFromShadow();
-            requestAnimationFrame(calculatePageBreaks);
+            calculatePageBreaksRAF();
          }
       }
    };
@@ -986,7 +953,7 @@ export default function DragAndDropBuilder() {
          saveHistory();
          el.setAttribute('style', css);
          updateContentFromShadow();
-         requestAnimationFrame(calculatePageBreaks);
+         calculatePageBreaksRAF();
       }
    };
 
@@ -1000,7 +967,7 @@ export default function DragAndDropBuilder() {
          el.remove();
          updateContentFromShadow();
          setSelectedXPath(null);
-         requestAnimationFrame(calculatePageBreaks);
+         calculatePageBreaksRAF();
       }
    };
 
@@ -1019,9 +986,9 @@ export default function DragAndDropBuilder() {
 
          el.parentNode?.insertBefore(clone, el.nextSibling);
          updateContentFromShadow();
-         requestAnimationFrame(calculatePageBreaks);
+         calculatePageBreaksRAF()
       }
-   }, [selectedXPath, saveHistory, updateContentFromShadow, calculatePageBreaks]);
+   }, [selectedXPath, saveHistory, updateContentFromShadow, calculatePageBreaksRAF]);
 
    const handleSidebarDragStart = (component: Block): void => {
       setDraggedComponent(component);
@@ -1235,85 +1202,168 @@ export default function DragAndDropBuilder() {
    };
 
 
-   const exportPDF = async (doc: {
+   type ExportDoc = {
       name: string;
-      content: string;
-      engine?: 'chromium' | 'firefox' | 'webkit';
-   }) => {
-      const tempDiv = window.document.createElement('div');
+      content: string; // full HTML string of your editor root snapshot
+      engine?: "chromium" | "firefox" | "webkit";
+   };
+
+
+   /**
+    * Collect CSS from the live editor shadow root (style tags + stylesheet links).
+    * This is what makes font-size/line-height/etc match.
+    */
+   function collectShadowStyles(shadow: ShadowRoot): { inlineCss: string; linkHrefs: string[] } {
+      const inlineCss: string[] = [];
+      const linkHrefs: string[] = [];
+
+      shadow.querySelectorAll("style").forEach((s) => {
+         inlineCss.push(s.textContent || "");
+      });
+
+      shadow.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]').forEach((l) => {
+         if (l.href) linkHrefs.push(l.href);
+      });
+
+      return { inlineCss: inlineCss.join("\n\n"), linkHrefs };
+   }
+
+   // Export PDF using html2pdf.js
+   const exportPDFWithHtml2Pdf = async (
+      doc: ExportDoc,
+      shadowRootRef: React.RefObject<ShadowRoot | null>
+   ) => {
+      const shadow = shadowRootRef.current;
+      if (!shadow) throw new Error("Shadow root not ready");
+
+      // Parse snapshot
+      const tempDiv = document.createElement("div");
       tempDiv.innerHTML = doc.content;
 
-      // 1. Remove ONLY the visual labels/overlays
-      tempDiv.querySelectorAll('.page-overlay, .page-gap-label').forEach(el => el.remove());
+      // Prefer exporting ONLY the actual content (avoids wrapper CSS mismatch)
+      const contentFlow = tempDiv.querySelector(".content-flow") as HTMLElement | null;
+      const exportRoot = (contentFlow ?? tempDiv) as HTMLElement;
 
-      // 2. Keep the .page-gap divs but make them invisible 
-      // (This preserves the exact spacing you calculated)
-      tempDiv.querySelectorAll<HTMLElement>('.page-gap').forEach(el => {
-         el.style.backgroundColor = 'transparent';
-         el.style.border = 'none';
-      });
+      // Remove editor-only UI elements
+      exportRoot
+         .querySelectorAll(".page-overlay, .page-gap, .page-gap-label, .page-count, .element-toolbar")
+         .forEach((el) => el.remove());
 
-      const pagePadding = '40px';
+      // Restore original margin-top if you stored it
+      exportRoot
+         .querySelectorAll<HTMLElement>("[data-page-break-before], [data-xpath]")
+         .forEach((el) => {
+            if (el.dataset.pbOrigMt !== undefined) {
+               el.style.marginTop = el.dataset.pbOrigMt;
+               delete el.dataset.pbOrigMt;
+            }
+         });
 
-      const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <style>
-    @page { size: A4; margin: 0; }
-    
-    body { 
-      margin: 0; 
-      padding: 0; 
-      width: 210mm; /* Strict A4 width */
-    }
+      // Collect editor CSS from shadow root
+      const { inlineCss, linkHrefs } = collectShadowStyles(shadow);
 
-    .content-wrapper {
-      width: 210mm;
-      margin: 0 auto;
-      /* This padding + the Playwright margin = your total UI padding */
-      padding: 0 40px; 
-    }
+      // --- Create offscreen export container (IMPORTANT: not display:none) ---
+      const host = document.createElement("div");
+      host.id = "pdf-export-host";
 
-    /* Force your calculated breaks */
-    [data-page-break-before] { 
-      break-before: page; 
-      page-break-before: always;
-      /* Add back the top padding since Playwright margins moved the start point */
-      margin-top: 20px !important; 
-    }
+      // Keep it measurable but invisible
+      host.style.position = "fixed";
+      host.style.left = "-100000px";
+      host.style.top = "0";
+      host.style.visibility = "hidden";
+      host.style.pointerEvents = "none";
+      host.style.zIndex = "-1";
 
-    /* Keep blocks together */
-    [data-xpath] { break-inside: avoid; }
-  </style>
-</head>
-<body>
-  <div class="content-wrapper">
-    ${tempDiv.innerHTML}
-  </div>
-</body>
-</html>
-`;
+      // A4 width approximation at 96dpi (html2canvas uses px)
+      // (You can tweak this if your editor uses a specific width)
+      host.style.width = editorDocument?.pageWidth.value + editorDocument?.pageWidth.unit || "794px";
 
-      const res = await fetch('/api/export-pdf', {
-         method: 'POST',
-         headers: { 'Content-Type': 'application/json' },
-         body: JSON.stringify({ html, title: doc.name, engine: doc.engine || 'chromium' }),
-      });
+      const linkHrefsString = linkHrefs.map((href) => `<link rel="stylesheet" href="${href}">`).join("\n");
+      // Build export DOM
+      host.innerHTML = /* html */`
+         ${linkHrefsString}
+         <style>
+            /* Ensure consistent box sizing */
+            *, *::before, *::after { box-sizing: border-box; }
 
-      if (!res.ok) {
-         const err = await res.json();
-         throw new Error(err.error || 'PDF export failed');
+            /* Bring your editor CSS */
+            ${inlineCss}
+
+            /* html2pdf DOES NOT respect @page margin well.
+               So simulate "page padding" by padding a wrapper. */
+            .pdf-page {
+               padding: 40px 40px 40px 40px;   /* no top padding */
+            }
+
+            /* Page breaks */
+            [data-page-break-before]{
+            break-before: page;
+            page-break-before: always;
+
+               /* THIS is the magic anothers pages top space*/
+               padding-top: 40px !important;
+            }
+
+            [data-keep-together="true"]{
+            break-inside: avoid;
+            page-break-inside: avoid;
+            }
+         </style>
+
+         <div class="pdf-page">
+            ${exportRoot.innerHTML}
+         </div>
+   `;
+
+      document.body.appendChild(host);
+
+      try {
+         // Wait for fonts/images if your content has them (recommended)
+         // If you already have your own syncImages(), call it here instead.
+         // @ts-ignore
+         if (document.fonts?.ready) await (document as any).fonts.ready;
+
+         const imgs = Array.from(host.querySelectorAll("img"));
+         await Promise.all(
+            imgs.map(
+               (img) =>
+                  img.complete
+                     ? Promise.resolve()
+                     : new Promise<void>((res) => {
+                        img.onload = () => res();
+                        img.onerror = () => res();
+                     })
+            )
+         );
+
+         const filename = `${doc.name.replace(/\s+/g, "-").toLowerCase()}.pdf`;
+
+         // Use the html2pdf builder API (more reliable than html2pdf(el, opts))
+         const html2pdf = (await import("html2pdf.js")).default;
+         await (html2pdf() as any)
+            .set({
+               filename,
+               margin: 0, // we use .pdf-page padding instead
+               image: { type: "jpeg", quality: 0.98 },
+               html2canvas: {
+                  scale: 2, // 2 is usually enough; 4 is heavy and slow
+                  useCORS: true,
+                  backgroundColor: "#ffffff",
+               },
+               jsPDF: { unit: "pt", format: "a4", orientation: "portrait" },
+               pagebreak: {
+                  mode: ["css", "legacy"],
+                  before: "[data-page-break-before]",
+                  avoid: "[data-keep-together='true']",
+               },
+            })
+            .from(host.querySelector(".pdf-page") as HTMLElement)
+            .save();
+      } finally {
+         host.remove();
       }
-
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = window.document.createElement('a');
-      a.href = url;
-      a.download = `${doc.name.replace(/\s+/g, '-').toLowerCase()}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
    };
+
 
    const importHTML = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -1439,12 +1489,10 @@ export default function DragAndDropBuilder() {
                      Import
                      <input type="file" accept=".html,.htm" onChange={importHTML} className="hidden" />
                   </label>
-                  <button onClick={() => exportPDF({
-                     name: editorDocument.name,
-                     content: editorDocument.content
-                  })} className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm">
+
+                  <button onClick={() => exportPDFWithHtml2Pdf(editorDocument, shadowRootRef)} className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm">
                      <Download size={16} />
-                     Export
+                     Export PDF
                   </button>
                </div>
             </div>

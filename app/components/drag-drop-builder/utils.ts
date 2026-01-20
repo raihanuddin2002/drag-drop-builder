@@ -225,3 +225,27 @@ export function rafThrottle(fn: () => void) {
       });
    };
 }
+
+export function resetPaginationStyling(el: HTMLElement) {
+   // Restore original inline marginTop (only what we changed)
+   if (el.dataset.pbOrigMt !== undefined) {
+      el.style.marginTop = el.dataset.pbOrigMt; // could be "" (valid)
+      delete el.dataset.pbOrigMt;
+   } else {
+      // If we never touched it, don't touch it now
+   }
+   el.removeAttribute("data-page-break-before");
+}
+
+export function applyPaginationMargin(el: HTMLElement, addPx: number) {
+   if (addPx <= 0) return;
+
+   // Save original inline style once
+   if (el.dataset.pbOrigMt === undefined) {
+      el.dataset.pbOrigMt = el.style.marginTop || ""; // inline only, not computed
+   }
+
+   const base = parseFloat(el.dataset.pbOrigMt || "0") || 0; // px assumption
+   el.style.marginTop = `${base + addPx}px`;
+}
+

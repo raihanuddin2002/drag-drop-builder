@@ -19,6 +19,7 @@ export type EditorDocument = {
    pageWidth: Width;
    pageHeight: Height;
    content: string; // Single continuous HTML content
+   pageFormat?: string;
 }
 
 export type ElementInfo = {
