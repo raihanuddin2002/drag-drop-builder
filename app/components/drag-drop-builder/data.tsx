@@ -293,14 +293,30 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             outline: 2px solid #22c55e !important;
             outline-offset: 2px;
         }
-        /* Prevent hover outline on elements inside a selected column/table container */
-        [data-column-container="true"][data-selected="true"] [data-xpath]:hover,
-        [data-table-container="true"][data-selected="true"] [data-xpath]:hover {
+        /* Prevent hover outline on elements inside column/table container */
+        [data-column-container="true"] [data-xpath]:hover,
+        [data-table-container="true"] [data-xpath]:hover,
+        [data-table-container="true"] table,
+        [data-table-container="true"] tr,
+        [data-table-container="true"] td,
+        [data-table-container="true"] th,
+        [data-table-container="true"] table:hover,
+        [data-table-container="true"] tr:hover,
+        [data-table-container="true"] td:hover,
+        [data-table-container="true"] th:hover {
             outline: none !important;
         }
         [data-selected="true"] {
             outline: 2px solid #22c55e !important;
             outline-offset: 2px;
+        }
+        /* Override: elements inside table container should not have selected outline */
+        [data-table-container="true"] [data-selected="true"],
+        [data-table-container="true"] table[data-selected="true"],
+        [data-table-container="true"] tr[data-selected="true"],
+        [data-table-container="true"] td[data-selected="true"],
+        [data-table-container="true"] th[data-selected="true"] {
+            outline: none !important;
         }
 
         /* Element Toolbar */
@@ -411,6 +427,16 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             transition: all 0.2s;
             position: relative;
         }
+        /* Invisible hover bridge to reach toolbar */
+        [data-table-container="true"]::before {
+            content: '';
+            position: absolute;
+            top: -40px;
+            left: 0;
+            right: 0;
+            height: 40px;
+            pointer-events: auto;
+        }
         [data-table-container="true"]:hover {
             outline: 2px solid #3b82f6;
             outline-offset: 4px;
@@ -442,9 +468,9 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
         }
         [data-table-container="true"] td:focus,
         [data-table-container="true"] th:focus {
-            outline: 2px solid #22c55e;
-            outline-offset: -2px;
-            background: rgba(34, 197, 94, 0.05);
+            outline: 2px solid #22c55e !important;
+            outline-offset: -2px !important;
+            background: rgba(34, 197, 94, 0.05) !important;
         }
 
         /* Overflow warning indicator for oversized elements */

@@ -491,7 +491,8 @@ export default function DragAndDropBuilder() {
 
             const isColumnContainer = el.hasAttribute('data-column-container');
             const isTableContainer = el.hasAttribute('data-table-container');
-            const shouldHaveToolbar = !el.hasAttribute('data-container') && !el.classList.contains('drop-zone');
+            const isInsideTableContainer = el.closest('[data-table-container="true"]') && !isTableContainer;
+            const shouldHaveToolbar = !el.hasAttribute('data-container') && !el.classList.contains('drop-zone') && !isInsideTableContainer;
 
             if (shouldHaveToolbar) {
                const toolbar = window.document.createElement('div');
