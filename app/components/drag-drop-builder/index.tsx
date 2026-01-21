@@ -32,9 +32,18 @@ import {
    isEditableElement,
    parseStyles,
    rafThrottle,
-   resetPaginationStyling
+   resetPaginationStyling,
+   resolveMergeFields,
+   MergeFieldData
 } from "./utils";
 import RichTextToolbar from "./RichEditorToolbar";
+
+// Merge field definition type
+type MergeFieldDefinition = {
+   path: string;
+   label: string;
+   category?: string;
+};
 import { ElementsSidebar } from "./ElementsSidebar";
 import { PageSizeSettings } from "./PageSizeSettings";
 // html2pdf is imported dynamically to avoid "self is not defined" error during SSR
@@ -44,7 +53,21 @@ const INITIAL_CONTENT = /*html*/`<div class="content-flow" data-container="true"
 const generateDocId = () => `doc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 const defaultPagePreset = PAGE_PRESETS.find(p => p.default)!;
 
-export default function DragAndDropBuilder() {
+export default function DragAndDropBuilder({
+   user = {
+      name: 'John Doe',
+      email: 'john.doe@example.com',
+      id: '1',
+      company_name: 'Example Company'
+   }
+}: {
+   user?: {
+      name: string
+      email: string
+      id: string,
+      company_name: string
+   };
+}) {
    // Single document with continuous content (MS Word-like)
    const [editorDocument, setEditorDocument] = useState<EditorDocument>(() => ({
       id: generateDocId(),
@@ -68,11 +91,111 @@ export default function DragAndDropBuilder() {
    // History for undo/redo
    const [history, setHistory] = useState<{ past: EditorDocument[]; future: EditorDocument[] }>({ past: [], future: [] });
 
+   // Table size selector modal
+   const [showTableModal, setShowTableModal] = useState(false);
+   const [tableModalMode, setTableModalMode] = useState<'create' | 'resize'>('create');
+   const [tableHover, setTableHover] = useState({ rows: 0, cols: 0 });
+
+   const TABLE_GRID_ROWS = 8;
+   const TABLE_GRID_COLS = 10;
+   const TABLE_PLACEHOLDER_ID = 'table-placeholder-marker';
+
+   // Generate table HTML
+   const generateTableHtml = (rows: number, cols: number): string => {
+      let tableHtml = '<div data-table-container="true" style="margin: 10px 0;">';
+      tableHtml += '<table style="border-collapse: collapse; width: 100%;">';
+      for (let r = 0; r < rows; r++) {
+         tableHtml += '<tr>';
+         for (let c = 0; c < cols; c++) {
+            tableHtml += '<td style="border: 1px solid #ccc; padding: 8px; min-width: 50px;" contenteditable="true">&nbsp;</td>';
+         }
+         tableHtml += '</tr>';
+      }
+      tableHtml += '</table>';
+      tableHtml += '</div>';
+      return tableHtml;
+   };
+
+   // Insert table at the placeholder position
+   const insertTableAtPosition = (rows: number, cols: number) => {
+      const shadow = shadowRootRef.current;
+      if (!shadow) return;
+
+      const placeholder = shadow.querySelector(`#${TABLE_PLACEHOLDER_ID}`);
+      if (!placeholder) return;
+
+      const tableHtml = generateTableHtml(rows, cols);
+      saveHistory();
+
+      placeholder.insertAdjacentHTML('beforebegin', tableHtml);
+      placeholder.remove();
+
+      updateContentFromShadow();
+      calculatePageBreaksRAF();
+      setShowTableModal(false);
+      setTableHover({ rows: 0, cols: 0 });
+   };
+
+   // Close table modal
+   const closeTableModal = () => {
+      const shadow = shadowRootRef.current;
+      // Clean up placeholder if modal is cancelled (only in create mode)
+      if (shadow && tableModalMode === 'create') {
+         const placeholder = shadow.querySelector(`#${TABLE_PLACEHOLDER_ID}`);
+         if (placeholder) {
+            placeholder.remove();
+            updateContentFromShadow();
+         }
+      }
+      setShowTableModal(false);
+      setTableHover({ rows: 0, cols: 0 });
+   };
+
    // Refs
    const containerRef = useRef<HTMLDivElement | null>(null);
    const shadowRootRef = useRef<ShadowRoot | null>(null);
    const draggedElementRef = useRef<HTMLElement | null>(null);
    const [shadowReady, setShadowReady] = useState(false);
+
+   // Merge field data - all available data that can be merged
+   const mergeFieldData: MergeFieldData = useMemo(() => ({
+      user,
+      client: user
+   }), [user]);
+
+   // Available merge field definitions for autocomplete
+   const availableMergeFields: MergeFieldDefinition[] = useMemo(() => [
+      { path: 'user.name', label: 'User Name', category: 'User' },
+      { path: 'user.email', label: 'User Email', category: 'User' },
+      { path: 'user.company_name', label: 'Company Name', category: 'User' },
+      { path: 'user.id', label: 'User ID', category: 'User' },
+      { path: 'client.name', label: 'Client Name', category: 'Client' },
+      { path: 'client.email', label: 'Client Email', category: 'Client' },
+      { path: 'client.company_name', label: 'Client Company Name', category: 'Client' },
+      { path: 'client.id', label: 'Client ID', category: 'Client' },
+   ], []);
+
+   // Merge field autocomplete state
+   const [mergeFieldSuggestions, setMergeFieldSuggestions] = useState<{
+      show: boolean;
+      position: { top: number; left: number };
+      query: string;
+      selectedIndex: number;
+   }>({ show: false, position: { top: 0, left: 0 }, query: '', selectedIndex: 0 });
+
+   // Filter suggestions based on query
+   const filteredMergeFields = useMemo(() => {
+      if (!mergeFieldSuggestions.query) return availableMergeFields;
+      const q = mergeFieldSuggestions.query.toLowerCase();
+      return availableMergeFields.filter(f =>
+         f.path.toLowerCase().includes(q) ||
+         f.label.toLowerCase().includes(q)
+      );
+   }, [availableMergeFields, mergeFieldSuggestions.query]);
+
+   // Refs to store merge field functions (to avoid dependency issues in useEffect)
+   const checkMergeFieldTriggerRef = useRef<() => void>(() => { });
+   const handleMergeFieldKeyDownRef = useRef<(e: KeyboardEvent) => void>(() => { });
 
    // Callback ref for shadow DOM attachment
    const setContainerRef = useCallback((node: HTMLDivElement | null) => {
@@ -430,11 +553,13 @@ export default function DragAndDropBuilder() {
             el.setAttribute('data-xpath', xpath);
 
             const isColumnContainer = el.hasAttribute('data-column-container');
-            const shouldHaveToolbar = !el.hasAttribute('data-container') && !el.classList.contains('drop-zone');
+            const isTableContainer = el.hasAttribute('data-table-container');
+            const isInsideTableContainer = el.closest('[data-table-container="true"]') && !isTableContainer;
+            const shouldHaveToolbar = !el.hasAttribute('data-container') && !el.classList.contains('drop-zone') && !isInsideTableContainer;
 
             if (shouldHaveToolbar) {
                const toolbar = window.document.createElement('div');
-               toolbar.className = isColumnContainer ? 'element-toolbar column-toolbar' : 'element-toolbar';
+               toolbar.className = isColumnContainer ? 'element-toolbar column-toolbar' : isTableContainer ? 'element-toolbar table-toolbar' : 'element-toolbar';
                toolbar.setAttribute('contenteditable', 'false');
                toolbar.innerHTML = /*html*/`
                   <button class="element-toolbar-btn" data-action="drag" title="Drag">
@@ -451,6 +576,24 @@ export default function DragAndDropBuilder() {
 
                if (!isColumnContainer && isEditableElement(el as HTMLElement)) {
                   el.setAttribute('contenteditable', 'true');
+
+                  // Check if element is empty for placeholder styling
+                  const clone = el.cloneNode(true) as HTMLElement;
+                  clone.querySelectorAll('.element-toolbar').forEach(t => t.remove());
+                  const textContent = clone.textContent?.trim() || '';
+                  const isEmpty = textContent === '' || clone.innerHTML.trim() === '' || clone.innerHTML.trim() === '<br>';
+
+                  if (isEmpty) {
+                     el.setAttribute('data-empty', 'true');
+                     // Add a <br> for cursor positioning if element is completely empty
+                     const hasContent = Array.from(el.childNodes).some(node =>
+                        (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) ||
+                        (node.nodeType === Node.ELEMENT_NODE && !(node as Element).classList.contains('element-toolbar'))
+                     );
+                     if (!hasContent) {
+                        el.appendChild(document.createElement('br'));
+                     }
+                  }
                }
             }
          }
@@ -538,9 +681,29 @@ export default function DragAndDropBuilder() {
                mouseEvent.preventDefault();
                mouseEvent.stopPropagation();
                setSelectedXPath(xpath);
-
             }
             return;
+         }
+
+         // Handle table container clicks - select the table container
+         if (target.hasAttribute('data-table-container')) {
+            const xpath = target.getAttribute('data-xpath');
+            if (xpath) {
+               mouseEvent.preventDefault();
+               mouseEvent.stopPropagation();
+               setSelectedXPath(xpath);
+            }
+            return;
+         }
+
+         // Handle clicks inside table (cells) - select parent table container
+         const parentTableContainer = target.closest('[data-table-container="true"]') as HTMLElement;
+         if (parentTableContainer && (target.tagName === 'TD' || target.tagName === 'TH' || target.tagName === 'TR' || target.tagName === 'TABLE')) {
+            const xpath = parentTableContainer.getAttribute('data-xpath');
+            if (xpath) {
+               setSelectedXPath(xpath);
+            }
+            // Don't return - allow contenteditable to work
          }
 
          const elementWithXPath = target.closest('[data-xpath]') as HTMLElement;
@@ -579,15 +742,48 @@ export default function DragAndDropBuilder() {
          calculatePageBreaksRAF();
       };
 
-      // Input handler - live page recalculation
-      const handleInput = () => {
+      // Input handler - live page recalculation and merge field detection
+      const handleInput = (e: Event) => {
          calculatePageBreaksRAF();
+         // Check for merge field trigger ({{ pattern)
+         checkMergeFieldTriggerRef.current();
+
+         // Toggle data-empty attribute for placeholder styling
+         const target = e.target as HTMLElement;
+         if (target.hasAttribute('contenteditable') && target.hasAttribute('data-xpath')) {
+            const clone = target.cloneNode(true) as HTMLElement;
+            clone.querySelectorAll('.element-toolbar').forEach(t => t.remove());
+            const textContent = clone.textContent?.trim() || '';
+            const hasOnlyBr = clone.innerHTML.trim() === '<br>' || clone.innerHTML.trim() === '';
+
+            if (textContent === '' || hasOnlyBr) {
+               target.setAttribute('data-empty', 'true');
+               // Ensure there's a <br> for cursor positioning
+               const hasNonToolbarContent = Array.from(target.childNodes).some(node =>
+                  (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) ||
+                  (node.nodeType === Node.ELEMENT_NODE &&
+                     !(node as Element).classList.contains('element-toolbar') &&
+                     (node as Element).tagName !== 'BR')
+               );
+               if (!hasNonToolbarContent && !target.querySelector(':scope > br')) {
+                  target.appendChild(document.createElement('br'));
+               }
+            } else {
+               target.removeAttribute('data-empty');
+            }
+         }
+      };
+
+      // Keydown handler for merge field autocomplete navigation
+      const handleKeyDown = (e: Event) => {
+         handleMergeFieldKeyDownRef.current(e as KeyboardEvent);
       };
 
       pagesWrapper.addEventListener('click', handleClick);
       pagesWrapper.addEventListener('paste', handlePaste as EventListener);
       pagesWrapper.addEventListener('focusout', handleBlur as EventListener);
       pagesWrapper.addEventListener('input', handleInput);
+      pagesWrapper.addEventListener('keydown', handleKeyDown);
 
       // Setup drag handlers
       const allDragBtns = shadow.querySelectorAll('.element-toolbar-btn[data-action="drag"]');
@@ -711,10 +907,23 @@ export default function DragAndDropBuilder() {
          shadow.querySelectorAll('.drag-over').forEach(zone => zone.classList.remove('drag-over'));
 
          if (dropIndicator) {
-            saveHistory();
-
             // elements block
             if (draggedComponent) {
+               // Check if it's a table block - insert placeholder and show modal
+               if (draggedComponent.id === 'table') {
+                  const placeholder = `<div id="${TABLE_PLACEHOLDER_ID}" style="display:none;"></div>`;
+                  dropIndicator.insertAdjacentHTML('beforebegin', placeholder);
+                  dropIndicator.remove();
+                  // Save placeholder to content before state changes trigger re-render
+                  updateContentFromShadow();
+                  setDraggedComponent(null);
+                  setTableModalMode('create');
+                  // Use setTimeout to ensure state updates complete before showing modal
+                  setTimeout(() => setShowTableModal(true), 0);
+                  return;
+               }
+
+               saveHistory();
                dropIndicator.insertAdjacentHTML('beforebegin', draggedComponent.html);
                dropIndicator.remove();
                setDraggedComponent(null);
@@ -760,6 +969,19 @@ export default function DragAndDropBuilder() {
 
          if (dropZone) {
             if (draggedComponent) {
+               // Check if it's a table block - insert placeholder and show modal
+               if (draggedComponent.id === 'table') {
+                  const placeholder = `<div id="${TABLE_PLACEHOLDER_ID}" style="display:none;"></div>`;
+                  dropZone.insertAdjacentHTML('beforeend', placeholder);
+                  // Save placeholder to content before state changes trigger re-render
+                  updateContentFromShadow();
+                  setDraggedComponent(null);
+                  setTableModalMode('create');
+                  // Use setTimeout to ensure state updates complete before showing modal
+                  setTimeout(() => setShowTableModal(true), 0);
+                  return;
+               }
+
                saveHistory();
                dropZone.insertAdjacentHTML('beforeend', draggedComponent.html);
                setDraggedComponent(null);
@@ -821,6 +1043,7 @@ export default function DragAndDropBuilder() {
          pagesWrapper.removeEventListener('paste', handlePaste as EventListener);
          pagesWrapper.removeEventListener('focusout', handleBlur as EventListener);
          pagesWrapper.removeEventListener('input', handleInput);
+         pagesWrapper.removeEventListener('keydown', handleKeyDown);
          pagesWrapper.removeEventListener('dragover', handleDragOver);
          pagesWrapper.removeEventListener('dragleave', handleDragLeave);
          pagesWrapper.removeEventListener('drop', handleDrop);
@@ -990,6 +1213,192 @@ export default function DragAndDropBuilder() {
       }
    }, [selectedXPath, saveHistory, updateContentFromShadow, calculatePageBreaksRAF]);
 
+   // Table manipulation functions
+   const addTableRow = useCallback((position: 'above' | 'below') => {
+      const shadow = shadowRootRef.current;
+      if (!selectedXPath || !shadow) return;
+
+      const el = shadow.querySelector(`[data-xpath="${selectedXPath}"]`) as HTMLElement;
+      if (!el) return;
+
+      const table = el.tagName === 'TABLE' ? el as HTMLTableElement : el.closest('table') as HTMLTableElement;
+      if (!table) return;
+
+      const row = el.closest('tr') as HTMLTableRowElement;
+      const rowIndex = row ? row.rowIndex : (position === 'above' ? 0 : table.rows.length - 1);
+      const colCount = table.rows[0]?.cells.length || 1;
+
+      saveHistory();
+
+      const newRow = table.insertRow(position === 'above' ? rowIndex : rowIndex + 1);
+      for (let i = 0; i < colCount; i++) {
+         const cell = newRow.insertCell();
+         cell.style.cssText = 'border: 1px solid #ccc; padding: 8px; min-width: 50px;';
+         cell.setAttribute('contenteditable', 'true');
+         cell.innerHTML = '&nbsp;';
+      }
+
+      updateContentFromShadow();
+      calculatePageBreaksRAF();
+   }, [selectedXPath, saveHistory, updateContentFromShadow, calculatePageBreaksRAF]);
+
+   const addTableColumn = useCallback((position: 'left' | 'right') => {
+      const shadow = shadowRootRef.current;
+      if (!selectedXPath || !shadow) return;
+
+      const el = shadow.querySelector(`[data-xpath="${selectedXPath}"]`) as HTMLElement;
+      if (!el) return;
+
+      const table = el.tagName === 'TABLE' ? el as HTMLTableElement : el.closest('table') as HTMLTableElement;
+      if (!table) return;
+
+      const cell = el.closest('td, th') as HTMLTableCellElement;
+      const colIndex = cell ? cell.cellIndex : (position === 'left' ? 0 : (table.rows[0]?.cells.length || 1) - 1);
+
+      saveHistory();
+
+      for (let i = 0; i < table.rows.length; i++) {
+         const newCell = table.rows[i].insertCell(position === 'left' ? colIndex : colIndex + 1);
+         newCell.style.cssText = 'border: 1px solid #ccc; padding: 8px; min-width: 50px;';
+         newCell.setAttribute('contenteditable', 'true');
+         newCell.innerHTML = '&nbsp;';
+      }
+
+      updateContentFromShadow();
+      calculatePageBreaksRAF();
+   }, [selectedXPath, saveHistory, updateContentFromShadow, calculatePageBreaksRAF]);
+
+   const deleteTableRow = useCallback(() => {
+      const shadow = shadowRootRef.current;
+      if (!selectedXPath || !shadow) return;
+
+      const el = shadow.querySelector(`[data-xpath="${selectedXPath}"]`) as HTMLElement;
+      if (!el) return;
+
+      const table = el.tagName === 'TABLE' ? el as HTMLTableElement : el.closest('table') as HTMLTableElement;
+      if (!table || table.rows.length <= 1) return;
+
+      const row = el.closest('tr') as HTMLTableRowElement;
+      if (!row) return;
+
+      saveHistory();
+      table.deleteRow(row.rowIndex);
+      updateContentFromShadow();
+      calculatePageBreaksRAF();
+   }, [selectedXPath, saveHistory, updateContentFromShadow, calculatePageBreaksRAF]);
+
+   const deleteTableColumn = useCallback(() => {
+      const shadow = shadowRootRef.current;
+      if (!selectedXPath || !shadow) return;
+
+      const el = shadow.querySelector(`[data-xpath="${selectedXPath}"]`) as HTMLElement;
+      if (!el) return;
+
+      const table = el.tagName === 'TABLE' ? el as HTMLTableElement : el.closest('table') as HTMLTableElement;
+      if (!table || !table.rows[0] || table.rows[0].cells.length <= 1) return;
+
+      const cell = el.closest('td, th') as HTMLTableCellElement;
+      if (!cell) return;
+
+      const colIndex = cell.cellIndex;
+
+      saveHistory();
+      for (let i = 0; i < table.rows.length; i++) {
+         if (table.rows[i].cells[colIndex]) {
+            table.rows[i].deleteCell(colIndex);
+         }
+      }
+
+      updateContentFromShadow();
+      calculatePageBreaksRAF();
+   }, [selectedXPath, saveHistory, updateContentFromShadow, calculatePageBreaksRAF]);
+
+   const deleteTable = useCallback(() => {
+      const shadow = shadowRootRef.current;
+      if (!selectedXPath || !shadow) return;
+
+      const el = shadow.querySelector(`[data-xpath="${selectedXPath}"]`) as HTMLElement;
+      if (!el) return;
+
+      const table = el.tagName === 'TABLE' ? el as HTMLTableElement : el.closest('table') as HTMLTableElement;
+      if (!table) return;
+
+      saveHistory();
+      table.remove();
+      setSelectedXPath(null);
+      updateContentFromShadow();
+      calculatePageBreaksRAF();
+   }, [selectedXPath, saveHistory, updateContentFromShadow, calculatePageBreaksRAF]);
+
+   // Resize existing table to new dimensions
+   const resizeTable = useCallback((newRows: number, newCols: number) => {
+      const shadow = shadowRootRef.current;
+      if (!selectedXPath || !shadow) return;
+
+      const el = shadow.querySelector(`[data-xpath="${selectedXPath}"]`) as HTMLElement;
+      if (!el) return;
+
+      const table = el.tagName === 'TABLE' ? el as HTMLTableElement : el.closest('table') as HTMLTableElement;
+      if (!table) return;
+
+      saveHistory();
+
+      const currentRows = table.rows.length;
+      const currentCols = table.rows[0]?.cells.length || 0;
+
+      // Adjust rows
+      if (newRows > currentRows) {
+         // Add rows
+         for (let i = currentRows; i < newRows; i++) {
+            const newRow = table.insertRow();
+            for (let j = 0; j < Math.max(currentCols, newCols); j++) {
+               const cell = newRow.insertCell();
+               cell.style.cssText = 'border: 1px solid #ccc; padding: 8px; min-width: 50px;';
+               cell.setAttribute('contenteditable', 'true');
+               cell.innerHTML = '&nbsp;';
+            }
+         }
+      } else if (newRows < currentRows) {
+         // Remove rows from the end
+         for (let i = currentRows - 1; i >= newRows; i--) {
+            table.deleteRow(i);
+         }
+      }
+
+      // Adjust columns
+      const updatedRows = table.rows.length;
+      for (let i = 0; i < updatedRows; i++) {
+         const row = table.rows[i];
+         const currentColsInRow = row.cells.length;
+
+         if (newCols > currentColsInRow) {
+            // Add columns
+            for (let j = currentColsInRow; j < newCols; j++) {
+               const cell = row.insertCell();
+               cell.style.cssText = 'border: 1px solid #ccc; padding: 8px; min-width: 50px;';
+               cell.setAttribute('contenteditable', 'true');
+               cell.innerHTML = '&nbsp;';
+            }
+         } else if (newCols < currentColsInRow) {
+            // Remove columns from the end
+            for (let j = currentColsInRow - 1; j >= newCols; j--) {
+               row.deleteCell(j);
+            }
+         }
+      }
+
+      updateContentFromShadow();
+      calculatePageBreaksRAF();
+      setShowTableModal(false);
+      setTableHover({ rows: 0, cols: 0 });
+   }, [selectedXPath, saveHistory, updateContentFromShadow, calculatePageBreaksRAF]);
+
+   // Open table size modal for resizing
+   const openTableResizeModal = useCallback(() => {
+      setTableModalMode('resize');
+      setShowTableModal(true);
+   }, []);
+
    const handleSidebarDragStart = (component: Block): void => {
       setDraggedComponent(component);
    };
@@ -1136,12 +1545,66 @@ export default function DragAndDropBuilder() {
          return;
       }
 
+      // Handle insertHTML for table insertion
+      if (command === 'insertHTML' && value) {
+         const range = selection.getRangeAt(0);
+
+         // Find the contenteditable element or content-flow container
+         let insertTarget: HTMLElement | null = null;
+         let node: Node | null = range.startContainer;
+
+         while (node) {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+               const el = node as HTMLElement;
+               if (el.hasAttribute('contenteditable') || el.hasAttribute('data-container')) {
+                  insertTarget = el;
+                  break;
+               }
+            }
+            if (node === shadow || !node.parentNode) break;
+            node = node.parentNode;
+         }
+
+         // If no contenteditable found, insert into content-flow
+         if (!insertTarget) {
+            insertTarget = shadow.querySelector('.content-flow') as HTMLElement;
+         }
+
+         if (insertTarget) {
+            saveHistory();
+
+            // Create a temporary container to parse the HTML
+            const temp = window.document.createElement('div');
+            temp.innerHTML = value;
+
+            // Insert at cursor position if inside contenteditable, otherwise append to container
+            if (insertTarget.hasAttribute('contenteditable') && !range.collapsed) {
+               range.deleteContents();
+            }
+
+            const frag = window.document.createDocumentFragment();
+            while (temp.firstChild) {
+               frag.appendChild(temp.firstChild);
+            }
+
+            if (insertTarget.hasAttribute('data-container')) {
+               insertTarget.appendChild(frag);
+            } else {
+               range.insertNode(frag);
+            }
+
+            updateContentFromShadow();
+            calculatePageBreaksRAF();
+         }
+         return;
+      }
+
       window.document.execCommand(command, false, value);
       setTimeout(() => updateContentFromShadow(), 0);
    }, [updateContentFromShadow, saveHistory, selectedXPath]);
 
-   // Clean content for export
-   const cleanContent = (content: string): string => {
+   // Clean content for export (with optional merge field resolution)
+   const cleanContent = useCallback((content: string, resolveMerge: boolean = true): string => {
       const parser = new DOMParser();
       const doc = parser.parseFromString(`<div>${content}</div>`, 'text/html');
       const container = doc.body.firstElementChild;
@@ -1157,8 +1620,163 @@ export default function DragAndDropBuilder() {
       container.querySelectorAll('.page-break-spacer').forEach(el => el.remove());
       container.querySelectorAll('[data-editable]').forEach(el => el.removeAttribute('data-editable'));
 
-      return container.innerHTML;
-   };
+      let result = container.innerHTML;
+
+      // Resolve merge fields if requested
+      if (resolveMerge) {
+         result = resolveMergeFields(result, mergeFieldData);
+      }
+
+      return result;
+   }, [mergeFieldData]);
+
+   // Get caret position for positioning the autocomplete popup
+   const getCaretCoordinates = useCallback((): { top: number; left: number } | null => {
+      const shadow = shadowRootRef.current;
+      if (!shadow) return null;
+
+      const selection = (shadow as any).getSelection?.() ?? window.document.getSelection();
+      if (!selection || selection.rangeCount === 0) return null;
+
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+
+      return {
+         top: rect.bottom + window.scrollY,
+         left: rect.left + window.scrollX
+      };
+   }, []);
+
+   // Check for merge field trigger pattern and show autocomplete
+   checkMergeFieldTriggerRef.current = useCallback(() => {
+      const shadow = shadowRootRef.current;
+      if (!shadow) return;
+
+      const selection = (shadow as any).getSelection?.() ?? window.document.getSelection();
+      if (!selection || selection.rangeCount === 0) return;
+
+      const range = selection.getRangeAt(0);
+      const textNode = range.startContainer;
+
+      if (textNode.nodeType !== Node.TEXT_NODE) {
+         setMergeFieldSuggestions(prev => ({ ...prev, show: false }));
+         return;
+      }
+
+      const text = textNode.textContent || '';
+      const cursorPos = range.startOffset;
+
+      // Find the last {{ before cursor
+      const beforeCursor = text.slice(0, cursorPos);
+      const lastOpenBrace = beforeCursor.lastIndexOf('{{');
+
+      if (lastOpenBrace === -1) {
+         setMergeFieldSuggestions(prev => ({ ...prev, show: false }));
+         return;
+      }
+
+      // Check if there's a closing }} between {{ and cursor
+      const afterOpen = beforeCursor.slice(lastOpenBrace + 2);
+      if (afterOpen.includes('}}')) {
+         setMergeFieldSuggestions(prev => ({ ...prev, show: false }));
+         return;
+      }
+
+      // Extract the query (what user typed after {{)
+      const query = afterOpen;
+
+      // Get caret position for popup
+      const coords = getCaretCoordinates();
+      if (!coords) return;
+
+      setMergeFieldSuggestions({
+         show: true,
+         position: coords,
+         query,
+         selectedIndex: 0
+      });
+   }, [getCaretCoordinates]);
+
+   // Insert selected merge field from autocomplete
+   const insertMergeFieldFromAutocomplete = useCallback((field: MergeFieldDefinition) => {
+      const shadow = shadowRootRef.current;
+      if (!shadow) return;
+
+      const selection = (shadow as any).getSelection?.() ?? window.document.getSelection();
+      if (!selection || selection.rangeCount === 0) return;
+
+      const range = selection.getRangeAt(0);
+      const textNode = range.startContainer;
+
+      if (textNode.nodeType !== Node.TEXT_NODE) return;
+
+      const text = textNode.textContent || '';
+      const cursorPos = range.startOffset;
+      const beforeCursor = text.slice(0, cursorPos);
+      const lastOpenBrace = beforeCursor.lastIndexOf('{{');
+
+      if (lastOpenBrace === -1) return;
+
+      saveHistory();
+
+      // Replace from {{ to cursor with the full merge field
+      const newText = text.slice(0, lastOpenBrace) + `{{${field.path}}}` + text.slice(cursorPos);
+      textNode.textContent = newText;
+
+      // Move cursor after the inserted token
+      const newCursorPos = lastOpenBrace + field.path.length + 4; // 4 = {{}}
+      range.setStart(textNode, newCursorPos);
+      range.setEnd(textNode, newCursorPos);
+      selection.removeAllRanges();
+      selection.addRange(range);
+
+      setMergeFieldSuggestions({ show: false, position: { top: 0, left: 0 }, query: '', selectedIndex: 0 });
+      updateContentFromShadow();
+   }, [saveHistory, updateContentFromShadow]);
+
+   // Handle keyboard navigation in autocomplete
+   // Only intercepts keys when autocomplete popup is visible
+   handleMergeFieldKeyDownRef.current = useCallback((e: KeyboardEvent) => {
+      // Only handle keys if autocomplete is showing with suggestions
+      if (!mergeFieldSuggestions.show || filteredMergeFields.length === 0) {
+         // Close autocomplete on Escape even if no suggestions
+         if (e.key === 'Escape' && mergeFieldSuggestions.show) {
+            setMergeFieldSuggestions({ show: false, position: { top: 0, left: 0 }, query: '', selectedIndex: 0 });
+         }
+         return;
+      }
+
+      // Only intercept specific navigation keys for autocomplete
+      if (e.key === 'ArrowDown') {
+         e.preventDefault();
+         e.stopPropagation();
+         setMergeFieldSuggestions(prev => ({
+            ...prev,
+            selectedIndex: (prev.selectedIndex + 1) % filteredMergeFields.length
+         }));
+      } else if (e.key === 'ArrowUp') {
+         e.preventDefault();
+         e.stopPropagation();
+         setMergeFieldSuggestions(prev => ({
+            ...prev,
+            selectedIndex: (prev.selectedIndex - 1 + filteredMergeFields.length) % filteredMergeFields.length
+         }));
+      } else if (e.key === 'Enter' || e.key === 'Tab') {
+         e.preventDefault();
+         e.stopPropagation();
+
+         const selected = filteredMergeFields[mergeFieldSuggestions.selectedIndex];
+
+         if (selected) {
+            insertMergeFieldFromAutocomplete(selected);
+         }
+      } else if (e.key === 'Escape') {
+         e.preventDefault();
+         e.stopPropagation();
+         setMergeFieldSuggestions({ show: false, position: { top: 0, left: 0 }, query: '', selectedIndex: 0 });
+      }
+      // All other keys pass through normally (including Shift, Ctrl for selection)
+   }, [mergeFieldSuggestions.show, mergeFieldSuggestions.selectedIndex, filteredMergeFields, insertMergeFieldFromAutocomplete]);
 
    // Export
    const exportHTML = () => {
@@ -1200,7 +1818,6 @@ export default function DragAndDropBuilder() {
       a.click();
       URL.revokeObjectURL(url);
    };
-
 
    type ExportDoc = {
       name: string;
@@ -1325,14 +1942,20 @@ export default function DragAndDropBuilder() {
    const exportPDFWithHtml2Pdf = async (
       doc: ExportDoc,
       shadowRootRef: React.RefObject<ShadowRoot | null>,
-      editorDocument?: { pageWidth?: { value: number; unit: string } } // optional, for width
+      editorDocument?: { pageWidth?: { value: number; unit: string } }, // optional, for width
+      mergeData?: MergeFieldData // optional merge field data
    ) => {
       const shadow = shadowRootRef.current;
       if (!shadow) throw new Error("Shadow root not ready");
 
+      // Resolve merge fields in content before parsing
+      const resolvedContent = mergeData
+         ? resolveMergeFields(doc.content, mergeData)
+         : doc.content;
+
       // Parse snapshot
       const tempDiv = document.createElement("div");
-      tempDiv.innerHTML = doc.content;
+      tempDiv.innerHTML = resolvedContent;
 
       // Prefer exporting ONLY the actual content (avoids wrapper CSS mismatch)
       const contentFlow = tempDiv.querySelector(".content-flow") as HTMLElement | null;
@@ -1525,7 +2148,25 @@ export default function DragAndDropBuilder() {
          inlineLinks.push({ href: link.getAttribute('href') || '', text: link.textContent || '', index });
       });
 
-      return { tag, styles, content, innerHTML, src, href, alt, isHtmlBlock, customCss, inlineLinks };
+      // Detect table context
+      const isTable = el.tagName === 'TABLE' || el.hasAttribute('data-table-container');
+      const tableElement = el.hasAttribute('data-table-container')
+         ? el.querySelector('table') as HTMLTableElement | null
+         : el.closest('table') as HTMLTableElement | null;
+      const isTableCell = ['TD', 'TH'].includes(el.tagName);
+      let cellRowIndex: number | undefined;
+      let cellColIndex: number | undefined;
+
+      if (isTableCell && el.parentElement) {
+         const row = el.parentElement as HTMLTableRowElement;
+         cellRowIndex = row.rowIndex;
+         cellColIndex = (el as HTMLTableCellElement).cellIndex;
+      }
+
+      return {
+         tag, styles, content, innerHTML, src, href, alt, isHtmlBlock, customCss, inlineLinks,
+         isTable, isTableCell, tableElement, cellRowIndex, cellColIndex
+      };
    };
 
    const elementInfo = getElementInfo();
@@ -1601,7 +2242,7 @@ export default function DragAndDropBuilder() {
                      <input type="file" accept=".html,.htm" onChange={importHTML} className="hidden" />
                   </label>
 
-                  <button onClick={() => exportPDFWithHtml2Pdf(editorDocument, shadowRootRef)} className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm">
+                  <button onClick={() => exportPDFWithHtml2Pdf(editorDocument, shadowRootRef, editorDocument, mergeFieldData)} className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm">
                      <Download size={16} />
                      Export PDF
                   </button>
@@ -1615,6 +2256,12 @@ export default function DragAndDropBuilder() {
                   onUpdateStyle={updateStyle}
                   onCommitChanges={() => { saveHistory(); updateContentFromShadow(); }}
                   elementInfo={elementInfo}
+                  onAddTableRow={addTableRow}
+                  onAddTableColumn={addTableColumn}
+                  onDeleteTableRow={deleteTableRow}
+                  onDeleteTableColumn={deleteTableColumn}
+                  onDeleteTable={deleteTable}
+                  onOpenTableResize={openTableResizeModal}
                />
             )}
 
@@ -1664,6 +2311,99 @@ export default function DragAndDropBuilder() {
                      onClose={() => { setSelectedXPath(null) }}
                   />
                )}
+            </div>
+         )}
+
+         {/* Table Size Selector Modal */}
+         {showTableModal && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+               <div className="bg-white rounded-lg shadow-xl p-6">
+                  <div className="text-lg font-medium mb-4">
+                     {tableModalMode === 'create' ? 'Insert Table' : 'Resize Table'}
+                  </div>
+                  <div className="text-sm text-gray-600 mb-3 text-center">
+                     {tableHover.rows > 0 ? `${tableHover.rows} × ${tableHover.cols}` : 'Select table size'}
+                  </div>
+                  <div
+                     className="grid gap-1 mb-4"
+                     style={{ gridTemplateColumns: `repeat(${TABLE_GRID_COLS}, 1fr)` }}
+                  >
+                     {Array.from({ length: TABLE_GRID_ROWS * TABLE_GRID_COLS }).map((_, index) => {
+                        const row = Math.floor(index / TABLE_GRID_COLS) + 1;
+                        const col = (index % TABLE_GRID_COLS) + 1;
+                        const isHighlighted = row <= tableHover.rows && col <= tableHover.cols;
+                        return (
+                           <div
+                              key={index}
+                              className={`w-5 h-5 border cursor-pointer transition-colors ${isHighlighted ? 'bg-green-500 border-green-600' : 'bg-white border-gray-300 hover:border-gray-400'
+                                 }`}
+                              onMouseEnter={() => setTableHover({ rows: row, cols: col })}
+                              onMouseLeave={() => setTableHover({ rows: 0, cols: 0 })}
+                              onClick={() => {
+                                 if (tableModalMode === 'create') {
+                                    insertTableAtPosition(row, col);
+                                 } else {
+                                    resizeTable(row, col);
+                                 }
+                              }}
+                           />
+                        );
+                     })}
+                  </div>
+                  <div className="flex justify-end">
+                     <button
+                        onClick={closeTableModal}
+                        className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded"
+                     >
+                        Cancel
+                     </button>
+                  </div>
+               </div>
+            </div>
+         )}
+
+         {/* Merge Field Autocomplete Popup */}
+         {mergeFieldSuggestions.show && filteredMergeFields.length > 0 && (
+            <div
+               className="fixed bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-9999 min-w-[220px] max-h-[200px] overflow-y-auto"
+               style={{
+                  top: mergeFieldSuggestions.position.top + 4,
+                  left: mergeFieldSuggestions.position.left
+               }}
+               onMouseDown={(e) => e.preventDefault()} // Prevent blur when clicking popup
+            >
+               <div className="px-3 py-1.5 text-xs font-medium text-gray-500 border-b border-gray-100 bg-gray-50">
+                  Merge Fields {mergeFieldSuggestions.query && <span className="text-indigo-600">"{mergeFieldSuggestions.query}"</span>}
+               </div>
+               {filteredMergeFields.map((field, index) => (
+                  <div
+                     key={field.path}
+                     onMouseDown={(e) => {
+                        e.preventDefault(); // Prevent losing focus
+                        insertMergeFieldFromAutocomplete(field);
+                     }}
+                     onMouseEnter={() => setMergeFieldSuggestions(prev => ({ ...prev, selectedIndex: index }))}
+                     className={`w-full px-3 py-2 text-left flex items-center gap-2 transition-colors cursor-pointer ${index === mergeFieldSuggestions.selectedIndex
+                        ? 'bg-indigo-50 text-indigo-900'
+                        : 'hover:bg-gray-50 text-gray-700'
+                        }`}
+                  >
+                     <code className={`text-xs px-1.5 py-0.5 rounded font-mono ${index === mergeFieldSuggestions.selectedIndex
+                        ? 'bg-indigo-200 text-indigo-800'
+                        : 'bg-gray-100 text-gray-600'
+                        }`}>
+                        {field.path}
+                     </code>
+                     <span className="text-sm">{field.label}</span>
+                  </div>
+               ))}
+               <div className="px-3 py-1.5 text-xs text-gray-400 border-t border-gray-100 bg-gray-50">
+                  <kbd className="px-1 py-0.5 bg-gray-200 rounded text-gray-600">↑↓</kbd> navigate
+                  <span className="mx-2">·</span>
+                  <kbd className="px-1 py-0.5 bg-gray-200 rounded text-gray-600">Enter</kbd> select
+                  <span className="mx-2">·</span>
+                  <kbd className="px-1 py-0.5 bg-gray-200 rounded text-gray-600">Esc</kbd> close
+               </div>
             </div>
          )}
       </div>

@@ -1,4 +1,4 @@
-import { Clock, Code, Image, Menu, Minus, Share2, Square, Type, Video } from "lucide-react";
+import { AlignVerticalSpaceAround, Clock, Code, Image, Menu, Minus, Share2, Square, Table, Type, Video } from "lucide-react";
 import { Block, EditorPage, PagePreset } from "./type";
 
 export const NON_EDITABLE_TAGS = ['IMG', 'HR', 'BR', 'STYLE', 'SCRIPT', 'BODY', 'CANVAS', 'IFRAME', 'SPAN', 'B', 'I', 'STRONG', 'EM'];
@@ -77,6 +77,32 @@ export const wrapPageInDocument = (page: EditorPage, styles: string = ''): strin
 
 export const COMPONENT_BLOCKS: Block[] = [
    {
+      id: 'heading',
+      label: 'Heading',
+      icon: <Type size={20} />,
+      category: 'blocks',
+      html: /* html */`<h2 style='color: #333; margin: 0;'><br></h2>`
+   },
+   {
+      id: 'text',
+      label: 'Text',
+      icon: <Type size={20} />,
+      category: 'blocks',
+      html: /* html */`<p style='margin: 0px;'><br></p>`
+   },
+   {
+      id: 'button',
+      label: 'Button',
+      icon: <Square size={20} />,
+      category: 'blocks',
+      html: /* html */`
+         <a
+            href="#"
+            style='display: inline-block; padding: 12px 30px; background: #3b82f6; color: white; text-decoration: none; border-radius: 4px; margin: 10px 0;'
+         ><br></a>
+      `
+   },
+   {
       id: 'image',
       label: 'Image',
       icon: <Image size={20} />,
@@ -90,82 +116,61 @@ export const COMPONENT_BLOCKS: Block[] = [
       `
    },
    {
-      id: 'text',
-      label: 'Text',
-      icon: <Type size={20} />,
-      category: 'blocks',
-      html: /* html */`<p style='margin: 0px;'>Add your text here.</p > `
-   },
-   {
-      id: 'button',
-      label: 'Button',
-      icon: <Square size={20} />,
-      category: 'blocks',
-      html: /* html */`
-         <a 
-            href="#"
-            style='display: inline-block; padding: 12px 30px; background: #3b82f6; color: white; text-decoration: none; border-radius: 4px; margin: 10px 0;'
-         >
-            Click Me
-         </a> 
-      `
-   },
-   {
-      id: 'spacer',
-      label: 'Spacer',
-      icon: <Minus size={20} />,
-      category: 'blocks',
-      html: /* html */`<div data-element-type='spacer' style='height: 40px;'></div > `
-   },
-   {
-      id: 'heading',
-      label: 'Heading',
-      icon: <Type size={20} />,
-      category: 'blocks',
-      html: /* html */`<h2 style='color: #333; margin: 0;'>New Heading</h2 > `
-   },
-   {
-      id: 'video',
-      label: 'Video',
-      icon: <Video size={20} />,
-      category: 'blocks',
-      html: /* html */`<div style='background: #f0f0f0; padding: 40px; text-align: center; margin: 15px 0; border-radius: 4px;'>Video Placeholder - Add embed code</div > `
-   },
-   {
-      id: 'social',
-      label: 'Social',
-      icon: <Share2 size={20} />,
-      category: 'blocks',
-      html: /* html */`<div style='text-align: center; padding: 15px; margin: 15px 0;'>Social Icons Placeholder</div > `
-   },
-   {
-      id: 'timer',
-      label: 'Timer',
-      icon: <Clock size={20} />,
-      category: 'blocks',
-      html: /* html */`<div style='text-align: center; padding: 20px; background: #f9fafb; margin: 15px 0; border-radius: 4px;'>Timer Widget Placeholder</div > `
-   },
-   {
-      id: 'menu',
-      label: 'Menu',
-      icon: <Menu size={20} />,
-      category: 'blocks',
-      html: /* html */`<div style='text-align: center; padding: 15px; margin: 15px 0;'>Menu Widget Placeholder</div > `
-   },
-   {
-      id: 'html',
-      label: 'HTML',
-      icon: <Code size={20} />,
-      category: 'blocks',
-      html: /* html */`<div data-html-block='true' style='padding: 15px; background: #f5f5f5; margin: 15px 0; font-family: monospace; border-radius: 4px;'>Custom HTML Block</div > `
-   },
-   {
       id: 'divider',
       label: 'Divider',
       icon: <Minus size={20} />,
       category: 'blocks',
       html: /* html */`<div class='editor-divider' style='border: none; height:2px; background: #e5e7eb; margin: 30px 0;'></div> `
    },
+   {
+      id: 'spacer',
+      label: 'Spacer',
+      icon: <AlignVerticalSpaceAround size={20} />,
+      category: 'blocks',
+      html: /* html */`<div data-element-type='spacer' style='height: 40px;'></div>`
+   },
+   {
+      id: 'table',
+      label: 'Table',
+      icon: <Table size={20} />,
+      category: 'blocks',
+      html: '__TABLE_PLACEHOLDER__' // Special marker - will be replaced with actual table after size selection
+   },
+   // {
+   //    id: 'video',
+   //    label: 'Video',
+   //    icon: <Video size={20} />,
+   //    category: 'blocks',
+   //    html: /* html */`<div style='background: #f0f0f0; padding: 40px; text-align: center; margin: 15px 0; border-radius: 4px;'>Video Placeholder - Add embed code</div > `
+   // },
+   // {
+   //    id: 'social',
+   //    label: 'Social',
+   //    icon: <Share2 size={20} />,
+   //    category: 'blocks',
+   //    html: /* html */`<div style='text-align: center; padding: 15px; margin: 15px 0;'>Social Icons Placeholder</div > `
+   // },
+   // {
+   //    id: 'timer',
+   //    label: 'Timer',
+   //    icon: <Clock size={20} />,
+   //    category: 'blocks',
+   //    html: /* html */`<div style='text-align: center; padding: 20px; background: #f9fafb; margin: 15px 0; border-radius: 4px;'>Timer Widget Placeholder</div > `
+   // },
+   // {
+   //    id: 'menu',
+   //    label: 'Menu',
+   //    icon: <Menu size={20} />,
+   //    category: 'blocks',
+   //    html: /* html */`<div style='text-align: center; padding: 15px; margin: 15px 0;'>Menu Widget Placeholder</div > `
+   // },
+   // {
+   //    id: 'html',
+   //    label: 'HTML',
+   //    icon: <Code size={20} />,
+   //    category: 'blocks',
+   //    html: /* html */`<div data-html-block='true' style='padding: 15px; background: #f5f5f5; margin: 15px 0; font-family: monospace; border-radius: 4px;'>Custom HTML Block</div > `
+   // },
 ];
 
 export const CONTAINER_LAYOUT_BLOCKS: Block[] = [
@@ -175,7 +180,7 @@ export const CONTAINER_LAYOUT_BLOCKS: Block[] = [
       icon: <Square size={20} />,
       category: 'container',
       html: /* html */`
-            <div style='display: flex; gap: 15px; margin: 10px 0;' data-column-container='true'>
+            <div style='display: flex; margin:10px 0;' data-column-container='true'>
                 <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
             </div>
         `
@@ -186,7 +191,7 @@ export const CONTAINER_LAYOUT_BLOCKS: Block[] = [
       icon: <Square size={20} />,
       category: 'container',
       html: /* html */`
-         <div style='display: flex; gap: 15px; margin: 10px 0;' data-column-container='true'>
+         <div style='display: flex; margin:10px 0;' data-column-container='true'>
             <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
             <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
          </div>
@@ -198,10 +203,10 @@ export const CONTAINER_LAYOUT_BLOCKS: Block[] = [
       icon: <Square size={20} />,
       category: 'container',
       html: /* html */`
-         <div style='display: flex; gap: 10px; margin:10px 0;' data-column-container='true'>
-            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
-            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
-            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
+         <div style='display: flex; gap: 10px; margin: 10px 0;' data-column-container='true'>
+            <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
+            <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
+            <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
          </div>
       `
    },
@@ -211,11 +216,11 @@ export const CONTAINER_LAYOUT_BLOCKS: Block[] = [
       icon: <Square size={20} />,
       category: 'container',
       html: /* html */`
-         <div style='display: flex; gap: 10px; margin:10px 0;' data-column-container='true'>
-            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
-            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
-            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
-            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
+         <div style='display: flex; margin: 0;' data-column-container='true'>
+            <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
+            <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
+            <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
+            <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
          </div>
       `
    },
@@ -225,7 +230,7 @@ export const CONTAINER_LAYOUT_BLOCKS: Block[] = [
       icon: <Square size={20} />,
       category: 'container',
       html: /* html */`
-         <div style='display: flex; gap: 15px; margin:10px 0;' data-column-container='true'>
+         <div style='display: flex; margin: 0;' data-column-container='true'>
             <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
             <div class='drop-zone' style='flex: 2; min-height: 100px;'></div>
          </div>
@@ -237,7 +242,7 @@ export const CONTAINER_LAYOUT_BLOCKS: Block[] = [
       icon: <Square size={20} />,
       category: 'container',
       html: /* html */`
-         <div style='display: flex; gap: 15px; margin:10px 0;' data-column-container='true'>
+         <div style='display: flex; margin:10px 0;' data-column-container='true'>
             <div class='drop-zone' style='flex: 2; min-height: 100px;'></div>
             <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
          </div>
@@ -278,21 +283,38 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             overflow-wrap: break-word;
         }
 
-        [data-xpath]:not([data-container="true"]):not(.drop-zone):not([data-column-container="true"]) {
+        [data-xpath]:not([data-container="true"]):not(.drop-zone):not([data-column-container="true"]):not([data-table-container="true"]) {
             position: relative;
             max-width: 100%;
         }
-        [data-xpath]:not([data-container="true"]):not(.drop-zone):not([data-column-container="true"]):hover {
+        [data-xpath]:not([data-container="true"]):not(.drop-zone):not([data-column-container="true"]):not([data-table-container="true"]):hover {
             outline: 2px solid #22c55e !important;
             outline-offset: 2px;
         }
-        /* Prevent hover outline on elements inside a selected column container */
-        [data-column-container="true"][data-selected="true"] [data-xpath]:hover {
+        /* Prevent hover outline on elements inside column/table container */
+        [data-column-container="true"] [data-xpath]:hover,
+        [data-table-container="true"] [data-xpath]:hover,
+        [data-table-container="true"] table,
+        [data-table-container="true"] tr,
+        [data-table-container="true"] td,
+        [data-table-container="true"] th,
+        [data-table-container="true"] table:hover,
+        [data-table-container="true"] tr:hover,
+        [data-table-container="true"] td:hover,
+        [data-table-container="true"] th:hover {
             outline: none !important;
         }
         [data-selected="true"] {
             outline: 2px solid #22c55e !important;
             outline-offset: 2px;
+        }
+        /* Override: elements inside table container should not have selected outline */
+        [data-table-container="true"] [data-selected="true"],
+        [data-table-container="true"] table[data-selected="true"],
+        [data-table-container="true"] tr[data-selected="true"],
+        [data-table-container="true"] td[data-selected="true"],
+        [data-table-container="true"] th[data-selected="true"] {
+            outline: none !important;
         }
 
         /* Element Toolbar */
@@ -342,16 +364,10 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
         }
        
         .drop-zone {
-            min-height: 80px;
-            border: 0.5px dashed #cbd5e1;
-            padding: 10px;
             transition: all 0.2s;
             position: relative;
-            border-radius: 5px;
         }
-        .drop-zone:hover {
-            border:1px solid #22c55e;
-        }
+     
         .drop-zone.drag-over {
             border-color: #22c55e !important;
             background: rgba(34, 197, 94, 0.1) !important;
@@ -398,6 +414,57 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             display: flex !important;
         }
 
+        /* Table container styling - same pattern as column-container */
+        [data-table-container="true"] {
+            transition: all 0.2s;
+            position: relative;
+        }
+        /* Invisible hover bridge to reach toolbar */
+        [data-table-container="true"]::before {
+            content: '';
+            position: absolute;
+            top: -40px;
+            left: 0;
+            right: 0;
+            height: 40px;
+            pointer-events: auto;
+        }
+        [data-table-container="true"]:hover {
+            outline: 2px solid #3b82f6;
+            outline-offset: 4px;
+        }
+        [data-table-container="true"][data-selected="true"] {
+            outline: 2px solid #3b82f6 !important;
+            outline-offset: 4px;
+        }
+        /* Table container toolbar - blue theme, visible on hover */
+        .table-toolbar {
+            position: absolute !important;
+            background: #3b82f6 !important;
+            top: -35px !important;
+            left: 10px !important;
+            transform: none !important;
+            z-index: 1000 !important;
+            flex-shrink: 0 !important;
+        }
+        [data-table-container="true"] > .table-toolbar {
+            display: none !important;
+        }
+        [data-table-container="true"]:hover > .table-toolbar,
+        [data-table-container="true"][data-selected="true"] > .table-toolbar {
+            display: flex !important;
+        }
+        [data-table-container="true"] td,
+        [data-table-container="true"] th {
+            position: relative;
+        }
+        [data-table-container="true"] td:focus,
+        [data-table-container="true"] th:focus {
+            outline: 2px solid #22c55e !important;
+            outline-offset: -2px !important;
+            background: rgba(34, 197, 94, 0.05) !important;
+        }
+
         /* Overflow warning indicator for oversized elements */
         [data-overflow-warning="true"] {
             outline: 2px dashed #f59e0b !important;
@@ -417,6 +484,132 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             white-space: nowrap;
             z-index: 1000;
+        }
+
+        /* Merge field token styling */
+        .merge-field-token {
+            background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%);
+            color: #3730a3;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, 'Courier New', monospace;
+            font-size: 0.9em;
+            border: 1px solid #a5b4fc;
+            white-space: nowrap;
+            cursor: default;
+            user-select: all;
+        }
+        .merge-field-token:hover {
+            background: linear-gradient(135deg, #bfdbfe 0%, #c7d2fe 100%);
+            border-color: #818cf8;
+        }
+        /* Invalid merge field (not found in data) */
+        .merge-field-token.invalid {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            color: #991b1b;
+            border-color: #fca5a5;
+        }
+        .merge-field-token.invalid:hover {
+            background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
+        }
+
+        /* Text and heading elements - maintain minimum size when empty */
+        p[data-xpath],
+        h1[data-xpath],
+        h2[data-xpath],
+        h3[data-xpath],
+        h4[data-xpath],
+        h5[data-xpath],
+        h6[data-xpath],
+        a[data-xpath] {
+            min-height: 1.5em;
+            min-width: 50px;
+            display: block;
+            position: relative;
+        }
+
+        /* Empty elements need a zero-width space for cursor positioning */
+        p[data-empty="true"],
+        h1[data-empty="true"],
+        h2[data-empty="true"],
+        h3[data-empty="true"],
+        h4[data-empty="true"],
+        h5[data-empty="true"],
+        h6[data-empty="true"],
+        a[data-empty="true"] {
+            min-height: 1.5em;
+        }
+
+        /* Placeholder for empty text blocks - positioned absolutely to not block cursor */
+        p[data-empty="true"]::before {
+            content: 'Type your text here...';
+            color: #9ca3af;
+            font-style: italic;
+            pointer-events: none;
+            position: absolute;
+            left: 0;
+            top: 0;
+            white-space: nowrap;
+        }
+
+        /* Placeholder for empty heading blocks */
+        h1[data-empty="true"]::before,
+        h2[data-empty="true"]::before,
+        h3[data-empty="true"]::before,
+        h4[data-empty="true"]::before,
+        h5[data-empty="true"]::before,
+        h6[data-empty="true"]::before {
+            content: 'Type your heading here...';
+            color: #9ca3af;
+            font-style: italic;
+            pointer-events: none;
+            position: absolute;
+            left: 0;
+            top: 0;
+            white-space: nowrap;
+        }
+
+        /* Placeholder for empty button/link blocks */
+        a[data-empty="true"]::before {
+            content: 'Button text...';
+            color: rgba(255,255,255,0.7);
+            font-style: italic;
+            pointer-events: none;
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            white-space: nowrap;
+        }
+
+        /* Placeholder for empty drop-zone containers - full design */
+        .drop-zone:empty::after {
+            display: grid;
+            content: 'Drag & Drop content here';
+            border: 1px dashed #00ab5552;
+            font-weight: 600;
+            border-radius: 6px;
+            text-align: center;
+            padding: 20px;
+            font-family: Poppins, sans-serif;
+            font-size: 11px;
+            color: #647381;
+            height: 100%;
+            width: 100%;
+            margin-inline: auto;
+            justify-items: center;
+            box-sizing: border-box;
+            background-color: #00ab551f;
+            align-items: center;
+        }
+
+        /* Placeholder for empty table cells */
+        [data-table-container="true"] td:empty::after,
+        [data-table-container="true"] th:empty::after {
+            content: 'Type here...';
+            color: #9ca3af;
+            font-style: italic;
+            pointer-events: none;
         }
     `
 }

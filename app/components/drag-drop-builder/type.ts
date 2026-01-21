@@ -33,6 +33,12 @@ export type ElementInfo = {
    isHtmlBlock: boolean;
    customCss: string;
    inlineLinks?: InlineLink[];
+   // Table context
+   isTable?: boolean;
+   isTableCell?: boolean;
+   tableElement?: HTMLTableElement | null;
+   cellRowIndex?: number;
+   cellColIndex?: number;
 }
 
 export type Block = {

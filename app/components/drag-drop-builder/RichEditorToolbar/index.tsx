@@ -14,7 +14,13 @@ import {
    Strikethrough,
    Subscript,
    Superscript,
-   Underline
+   Table,
+   Underline,
+   Trash2,
+   Plus,
+   Minus,
+   Columns2Icon,
+   Rows2Icon
 } from "lucide-react";
 import { useRef, useEffect, useState } from "react";
 import { RICH_TOOLBAR_FONT_FAMILIES, RICH_TOOLBAR_FONT_SIZES } from "../data";
@@ -25,15 +31,68 @@ export type RichTextToolbarProps = {
    onUpdateStyle?: (prop: string, value: string, livePreview?: boolean) => void;
    onCommitChanges?: () => void;
    elementInfo?: ElementInfo | null;
+   // Table manipulation callbacks
+   onAddTableRow?: (position: 'above' | 'below') => void;
+   onAddTableColumn?: (position: 'left' | 'right') => void;
+   onDeleteTableRow?: () => void;
+   onDeleteTableColumn?: () => void;
+   onDeleteTable?: () => void;
+   onOpenTableResize?: () => void;
 }
 
-export default function RichTextToolbar({ onFormat, onUpdateStyle, onCommitChanges, elementInfo }: RichTextToolbarProps) {
+export default function RichTextToolbar({
+   onFormat,
+   onUpdateStyle,
+   onCommitChanges,
+   elementInfo,
+   onAddTableRow,
+   onAddTableColumn,
+   onDeleteTableRow,
+   onDeleteTableColumn,
+   onDeleteTable,
+   onOpenTableResize
+}: RichTextToolbarProps) {
    const [fontSize, setFontSize] = useState('16px');
    const [fontFamily, setFontFamily] = useState('Arial');
    const [fontColor, setFontColor] = useState('#000000');
    const [textAlign, setTextAlign] = useState('left');
+   const [showTableGrid, setShowTableGrid] = useState(false);
+   const [tableHover, setTableHover] = useState({ rows: 0, cols: 0 });
    const savedSelectionRef = useRef<Range | null>(null);
    const colorInputRef = useRef<HTMLInputElement>(null);
+   const tableGridRef = useRef<HTMLDivElement>(null);
+
+   const TABLE_GRID_ROWS = 8;
+   const TABLE_GRID_COLS = 10;
+
+   // Close table grid when clicking outside
+   useEffect(() => {
+      const handleClickOutside = (e: MouseEvent) => {
+         if (tableGridRef.current && !tableGridRef.current.contains(e.target as Node)) {
+            setShowTableGrid(false);
+         }
+      };
+      if (showTableGrid) {
+         document.addEventListener('mousedown', handleClickOutside);
+      }
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+   }, [showTableGrid]);
+
+   // Insert table HTML
+   const insertTable = (rows: number, cols: number) => {
+      let tableHtml = '<table style="border-collapse: collapse; width: 100%;">';
+      for (let r = 0; r < rows; r++) {
+         tableHtml += '<tr>';
+         for (let c = 0; c < cols; c++) {
+            tableHtml += '<td style="border: 1px solid #ccc; padding: 8px; min-width: 50px;">&nbsp;</td>';
+         }
+         tableHtml += '</tr>';
+      }
+      tableHtml += '</table><p><br></p>';
+      onFormat('insertHTML', tableHtml);
+      setShowTableGrid(false);
+      setTableHover({ rows: 0, cols: 0 });
+   };
 
    // Sync with elementInfo when it changes
    useEffect(() => {
@@ -155,6 +214,124 @@ export default function RichTextToolbar({ onFormat, onUpdateStyle, onCommitChang
          >
             <Unlink size={16} />
          </button>
+
+         {/* Table Edit Options - only show when table/cell is selected */}
+         {(elementInfo?.isTable || elementInfo?.isTableCell || elementInfo?.tableElement) && (
+            <>
+               <div className="w-px h-6 bg-gray-300 mx-1" />
+               {/* Table Resize */}
+               <div className="relative" ref={tableGridRef}>
+                  <button
+                     onMouseDown={(e) => {
+                        e.preventDefault();
+                        // If table is selected, use resize mode via callback
+                        if (elementInfo?.isTable || elementInfo?.isTableCell || elementInfo?.tableElement) {
+                           onOpenTableResize?.();
+                        }
+                     }}
+                     className={`p-2 hover:bg-gray-100 rounded`}
+                     title={"Resize Table"}
+                  >
+                     <Table size={16} />
+                  </button>
+
+                  {showTableGrid && (
+                     <div className="absolute top-full left-0 mt-1 bg-white border rounded shadow-lg p-2 z-50">
+                        <div className="text-xs text-gray-600 mb-2 text-center">
+                           {tableHover.rows > 0 ? `${tableHover.rows} × ${tableHover.cols}` : 'Select table size'}
+                        </div>
+                        <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${TABLE_GRID_COLS}, 1fr)` }}>
+                           {Array.from({ length: TABLE_GRID_ROWS * TABLE_GRID_COLS }).map((_, index) => {
+                              const row = Math.floor(index / TABLE_GRID_COLS) + 1;
+                              const col = (index % TABLE_GRID_COLS) + 1;
+                              const isHighlighted = row <= tableHover.rows && col <= tableHover.cols;
+                              return (
+                                 <div
+                                    key={index}
+                                    className={`w-4 h-4 border cursor-pointer transition-colors ${isHighlighted ? 'bg-blue-500 border-blue-600' : 'bg-white border-gray-300 hover:border-gray-400'
+                                       }`}
+                                    onMouseEnter={() => setTableHover({ rows: row, cols: col })}
+                                    onMouseLeave={() => setTableHover({ rows: 0, cols: 0 })}
+                                    onClick={() => {
+                                       restoreSelection();
+                                       insertTable(row, col);
+                                    }}
+                                 />
+                              );
+                           })}
+                        </div>
+                     </div>
+                  )}
+               </div>
+
+               {/* Row and col controls */}
+               <div className="flex items-center gap-1 bg-blue-50 rounded px-2 py-1">
+
+                  {/* Row controls */}
+                  <div className="flex items-center gap-0.5 border-r border-blue-200 pr-2 mr-1" title="Row">
+                     <span title="Row"> <Rows2Icon size={16} /></span>
+
+                     <button
+                        onMouseDown={(e) => {
+                           e.preventDefault();
+                           onAddTableRow?.('below');
+                        }}
+                        className="p-1 hover:bg-blue-100 rounded text-blue-600"
+                        title="Add Row"
+                     >
+                        <Plus size={14} />
+                     </button>
+                     <button
+                        onMouseDown={(e) => {
+                           e.preventDefault();
+                           onDeleteTableRow?.();
+                        }}
+                        className="p-1 hover:bg-red-100 rounded text-red-500"
+                        title="Delete Row"
+                     >
+                        <Minus size={14} />
+                     </button>
+                  </div>
+
+                  {/* Column controls */}
+                  <div className="flex items-center gap-0.5 border-r border-blue-200 pr-2 mr-1" title="Column">
+                     <span title="Column"> <Columns2Icon size={16} /></span>
+                     <button
+                        onMouseDown={(e) => {
+                           e.preventDefault();
+                           onAddTableColumn?.('right');
+                        }}
+                        className="p-1 hover:bg-blue-100 rounded text-blue-600"
+                        title="Add Column"
+                     >
+                        <Plus size={14} />
+                     </button>
+                     <button
+                        onMouseDown={(e) => {
+                           e.preventDefault();
+                           onDeleteTableColumn?.();
+                        }}
+                        className="p-1 hover:bg-red-100 rounded text-red-500"
+                        title="Delete Column"
+                     >
+                        <Minus size={14} />
+                     </button>
+                  </div>
+
+                  {/* Delete table */}
+                  <button
+                     onMouseDown={(e) => {
+                        e.preventDefault();
+                        onDeleteTable?.();
+                     }}
+                     className="p-1 hover:bg-red-100 rounded text-red-500"
+                     title="Delete Table"
+                  >
+                     <Trash2 size={14} />
+                  </button>
+               </div>
+            </>
+         )}
 
          <div className="w-px h-6 bg-gray-300 mx-1" />
 
