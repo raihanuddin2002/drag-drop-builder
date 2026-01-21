@@ -18,7 +18,9 @@ import {
    Underline,
    Trash2,
    Plus,
-   Minus
+   Minus,
+   Columns2Icon,
+   Rows2Icon
 } from "lucide-react";
 import { useRef, useEffect, useState } from "react";
 import { RICH_TOOLBAR_FONT_FAMILIES, RICH_TOOLBAR_FONT_SIZES } from "../data";
@@ -213,68 +215,62 @@ export default function RichTextToolbar({
             <Unlink size={16} />
          </button>
 
-         <div className="w-px h-6 bg-gray-300 mx-1" />
-
-         {/* Table Insert / Resize */}
-         <div className="relative" ref={tableGridRef}>
-            <button
-               onMouseDown={(e) => {
-                  e.preventDefault();
-                  // If table is selected, use resize mode via callback
-                  if (elementInfo?.isTable || elementInfo?.isTableCell || elementInfo?.tableElement) {
-                     onOpenTableResize?.();
-                  } else {
-                     saveSelection();
-                     setShowTableGrid(!showTableGrid);
-                  }
-               }}
-               className={`p-2 hover:bg-gray-100 rounded ${showTableGrid ? 'bg-gray-200' : ''} ${
-                  (elementInfo?.isTable || elementInfo?.isTableCell || elementInfo?.tableElement) ? 'ring-2 ring-blue-300' : ''
-               }`}
-               title={(elementInfo?.isTable || elementInfo?.isTableCell || elementInfo?.tableElement) ? "Resize Table" : "Insert Table"}
-            >
-               <Table size={16} />
-            </button>
-            {showTableGrid && (
-               <div className="absolute top-full left-0 mt-1 bg-white border rounded shadow-lg p-2 z-50">
-                  <div className="text-xs text-gray-600 mb-2 text-center">
-                     {tableHover.rows > 0 ? `${tableHover.rows} × ${tableHover.cols}` : 'Select table size'}
-                  </div>
-                  <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${TABLE_GRID_COLS}, 1fr)` }}>
-                     {Array.from({ length: TABLE_GRID_ROWS * TABLE_GRID_COLS }).map((_, index) => {
-                        const row = Math.floor(index / TABLE_GRID_COLS) + 1;
-                        const col = (index % TABLE_GRID_COLS) + 1;
-                        const isHighlighted = row <= tableHover.rows && col <= tableHover.cols;
-                        return (
-                           <div
-                              key={index}
-                              className={`w-4 h-4 border cursor-pointer transition-colors ${
-                                 isHighlighted ? 'bg-blue-500 border-blue-600' : 'bg-white border-gray-300 hover:border-gray-400'
-                              }`}
-                              onMouseEnter={() => setTableHover({ rows: row, cols: col })}
-                              onMouseLeave={() => setTableHover({ rows: 0, cols: 0 })}
-                              onClick={() => {
-                                 restoreSelection();
-                                 insertTable(row, col);
-                              }}
-                           />
-                        );
-                     })}
-                  </div>
-               </div>
-            )}
-         </div>
-
          {/* Table Edit Options - only show when table/cell is selected */}
          {(elementInfo?.isTable || elementInfo?.isTableCell || elementInfo?.tableElement) && (
             <>
                <div className="w-px h-6 bg-gray-300 mx-1" />
+               {/* Table Resize */}
+               <div className="relative" ref={tableGridRef}>
+                  <button
+                     onMouseDown={(e) => {
+                        e.preventDefault();
+                        // If table is selected, use resize mode via callback
+                        if (elementInfo?.isTable || elementInfo?.isTableCell || elementInfo?.tableElement) {
+                           onOpenTableResize?.();
+                        }
+                     }}
+                     className={`p-2 hover:bg-gray-100 rounded`}
+                     title={"Resize Table"}
+                  >
+                     <Table size={16} />
+                  </button>
+
+                  {showTableGrid && (
+                     <div className="absolute top-full left-0 mt-1 bg-white border rounded shadow-lg p-2 z-50">
+                        <div className="text-xs text-gray-600 mb-2 text-center">
+                           {tableHover.rows > 0 ? `${tableHover.rows} × ${tableHover.cols}` : 'Select table size'}
+                        </div>
+                        <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${TABLE_GRID_COLS}, 1fr)` }}>
+                           {Array.from({ length: TABLE_GRID_ROWS * TABLE_GRID_COLS }).map((_, index) => {
+                              const row = Math.floor(index / TABLE_GRID_COLS) + 1;
+                              const col = (index % TABLE_GRID_COLS) + 1;
+                              const isHighlighted = row <= tableHover.rows && col <= tableHover.cols;
+                              return (
+                                 <div
+                                    key={index}
+                                    className={`w-4 h-4 border cursor-pointer transition-colors ${isHighlighted ? 'bg-blue-500 border-blue-600' : 'bg-white border-gray-300 hover:border-gray-400'
+                                       }`}
+                                    onMouseEnter={() => setTableHover({ rows: row, cols: col })}
+                                    onMouseLeave={() => setTableHover({ rows: 0, cols: 0 })}
+                                    onClick={() => {
+                                       restoreSelection();
+                                       insertTable(row, col);
+                                    }}
+                                 />
+                              );
+                           })}
+                        </div>
+                     </div>
+                  )}
+               </div>
+
+               {/* Row and col controls */}
                <div className="flex items-center gap-1 bg-blue-50 rounded px-2 py-1">
-                  <span className="text-xs text-blue-600 font-medium">Table:</span>
 
                   {/* Row controls */}
-                  <div className="flex items-center gap-0.5 border-r border-blue-200 pr-2 mr-1">
-                     <span className="text-xs text-gray-500">Row</span>
+                  <div className="flex items-center gap-0.5 border-r border-blue-200 pr-2 mr-1" title="Row">
+                     <span title="Row"> <Rows2Icon size={16} /></span>
+
                      <button
                         onMouseDown={(e) => {
                            e.preventDefault();
@@ -298,8 +294,8 @@ export default function RichTextToolbar({
                   </div>
 
                   {/* Column controls */}
-                  <div className="flex items-center gap-0.5 border-r border-blue-200 pr-2 mr-1">
-                     <span className="text-xs text-gray-500">Col</span>
+                  <div className="flex items-center gap-0.5 border-r border-blue-200 pr-2 mr-1" title="Column">
+                     <span title="Column"> <Columns2Icon size={16} /></span>
                      <button
                         onMouseDown={(e) => {
                            e.preventDefault();
