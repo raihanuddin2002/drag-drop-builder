@@ -1,6 +1,82 @@
 import { INITIAL_PAGE_HTML, NON_EDITABLE_TAGS } from "./data";
 import { ElementStyles, EditorPage, PagePreset } from "./type";
 
+// ============================================
+// MERGE FIELDS - O(n) single-pass replacement
+// ============================================
+
+export type MergeFieldData = Record<string, any>;
+
+/**
+ * Resolves merge fields in content with O(n) complexity.
+ * Supports dot notation for nested objects: {{user.company_name}}
+ *
+ * @param content - HTML string containing merge field tokens
+ * @param data - Object containing the data to merge
+ * @returns Content with merge fields replaced by actual values
+ *
+ * Complexity: O(n) where n is the content length
+ * - Regex scans string once: O(n)
+ * - Each match: path lookup O(k) where k = depth (constant, typically 2-3)
+ */
+export const resolveMergeFields = (content: string, data: MergeFieldData): string => {
+   return content.replace(/\{\{([^}]+)\}\}/g, (match, path: string) => {
+      const trimmedPath = path.trim();
+      const value = trimmedPath.split('.').reduce(
+         (obj: any, key: string) => obj?.[key],
+         data
+      );
+      return value !== undefined ? String(value) : match;
+   });
+};
+
+/**
+ * Extracts all merge field tokens from content.
+ * Useful for validation or listing available fields.
+ *
+ * @param content - HTML string to scan
+ * @returns Array of unique merge field paths
+ *
+ * Complexity: O(n)
+ */
+export const extractMergeFields = (content: string): string[] => {
+   const matches = content.match(/\{\{([^}]+)\}\}/g) || [];
+   const paths = matches.map(m => m.slice(2, -2).trim());
+   return [...new Set(paths)];
+};
+
+/**
+ * Validates that all merge fields in content exist in data.
+ *
+ * @param content - HTML string containing merge field tokens
+ * @param data - Object containing the data
+ * @returns Object with valid and invalid field paths
+ *
+ * Complexity: O(n + m*k) where m = number of fields, k = depth
+ */
+export const validateMergeFields = (
+   content: string,
+   data: MergeFieldData
+): { valid: string[]; invalid: string[] } => {
+   const fields = extractMergeFields(content);
+   const valid: string[] = [];
+   const invalid: string[] = [];
+
+   for (const path of fields) {
+      const value = path.split('.').reduce(
+         (obj: any, key: string) => obj?.[key],
+         data
+      );
+      if (value !== undefined) {
+         valid.push(path);
+      } else {
+         invalid.push(path);
+      }
+   }
+
+   return { valid, invalid };
+};
+
 export const generatePageId = (): string => `page-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
 export const createDefaultPage = (name: string = 'Page 1', preset?: PagePreset): EditorPage => ({

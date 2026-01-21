@@ -94,7 +94,7 @@ export const COMPONENT_BLOCKS: Block[] = [
       label: 'Text',
       icon: <Type size={20} />,
       category: 'blocks',
-      html: /* html */`<p style='margin: 0px;'>Add your text here.</p > `
+      html: /* html */`<p style='margin: 0px;'> </p > `
    },
    {
       id: 'button',
@@ -106,7 +106,7 @@ export const COMPONENT_BLOCKS: Block[] = [
             href="#"
             style='display: inline-block; padding: 12px 30px; background: #3b82f6; color: white; text-decoration: none; border-radius: 4px; margin: 10px 0;'
          >
-            Click Me
+            
          </a> 
       `
    },
@@ -122,43 +122,43 @@ export const COMPONENT_BLOCKS: Block[] = [
       label: 'Heading',
       icon: <Type size={20} />,
       category: 'blocks',
-      html: /* html */`<h2 style='color: #333; margin: 0;'>New Heading</h2 > `
+      html: /* html */`<h2 style='color: #333; margin: 0;'></h2 > `
    },
-   {
-      id: 'video',
-      label: 'Video',
-      icon: <Video size={20} />,
-      category: 'blocks',
-      html: /* html */`<div style='background: #f0f0f0; padding: 40px; text-align: center; margin: 15px 0; border-radius: 4px;'>Video Placeholder - Add embed code</div > `
-   },
-   {
-      id: 'social',
-      label: 'Social',
-      icon: <Share2 size={20} />,
-      category: 'blocks',
-      html: /* html */`<div style='text-align: center; padding: 15px; margin: 15px 0;'>Social Icons Placeholder</div > `
-   },
-   {
-      id: 'timer',
-      label: 'Timer',
-      icon: <Clock size={20} />,
-      category: 'blocks',
-      html: /* html */`<div style='text-align: center; padding: 20px; background: #f9fafb; margin: 15px 0; border-radius: 4px;'>Timer Widget Placeholder</div > `
-   },
-   {
-      id: 'menu',
-      label: 'Menu',
-      icon: <Menu size={20} />,
-      category: 'blocks',
-      html: /* html */`<div style='text-align: center; padding: 15px; margin: 15px 0;'>Menu Widget Placeholder</div > `
-   },
-   {
-      id: 'html',
-      label: 'HTML',
-      icon: <Code size={20} />,
-      category: 'blocks',
-      html: /* html */`<div data-html-block='true' style='padding: 15px; background: #f5f5f5; margin: 15px 0; font-family: monospace; border-radius: 4px;'>Custom HTML Block</div > `
-   },
+   // {
+   //    id: 'video',
+   //    label: 'Video',
+   //    icon: <Video size={20} />,
+   //    category: 'blocks',
+   //    html: /* html */`<div style='background: #f0f0f0; padding: 40px; text-align: center; margin: 15px 0; border-radius: 4px;'>Video Placeholder - Add embed code</div > `
+   // },
+   // {
+   //    id: 'social',
+   //    label: 'Social',
+   //    icon: <Share2 size={20} />,
+   //    category: 'blocks',
+   //    html: /* html */`<div style='text-align: center; padding: 15px; margin: 15px 0;'>Social Icons Placeholder</div > `
+   // },
+   // {
+   //    id: 'timer',
+   //    label: 'Timer',
+   //    icon: <Clock size={20} />,
+   //    category: 'blocks',
+   //    html: /* html */`<div style='text-align: center; padding: 20px; background: #f9fafb; margin: 15px 0; border-radius: 4px;'>Timer Widget Placeholder</div > `
+   // },
+   // {
+   //    id: 'menu',
+   //    label: 'Menu',
+   //    icon: <Menu size={20} />,
+   //    category: 'blocks',
+   //    html: /* html */`<div style='text-align: center; padding: 15px; margin: 15px 0;'>Menu Widget Placeholder</div > `
+   // },
+   // {
+   //    id: 'html',
+   //    label: 'HTML',
+   //    icon: <Code size={20} />,
+   //    category: 'blocks',
+   //    html: /* html */`<div data-html-block='true' style='padding: 15px; background: #f5f5f5; margin: 15px 0; font-family: monospace; border-radius: 4px;'>Custom HTML Block</div > `
+   // },
    {
       id: 'divider',
       label: 'Divider',
@@ -492,6 +492,33 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             white-space: nowrap;
             z-index: 1000;
+        }
+
+        /* Merge field token styling */
+        .merge-field-token {
+            background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%);
+            color: #3730a3;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, 'Courier New', monospace;
+            font-size: 0.9em;
+            border: 1px solid #a5b4fc;
+            white-space: nowrap;
+            cursor: default;
+            user-select: all;
+        }
+        .merge-field-token:hover {
+            background: linear-gradient(135deg, #bfdbfe 0%, #c7d2fe 100%);
+            border-color: #818cf8;
+        }
+        /* Invalid merge field (not found in data) */
+        .merge-field-token.invalid {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            color: #991b1b;
+            border-color: #fca5a5;
+        }
+        .merge-field-token.invalid:hover {
+            background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
         }
     `
 }

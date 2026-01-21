@@ -32,9 +32,18 @@ import {
    isEditableElement,
    parseStyles,
    rafThrottle,
-   resetPaginationStyling
+   resetPaginationStyling,
+   resolveMergeFields,
+   MergeFieldData
 } from "./utils";
 import RichTextToolbar from "./RichEditorToolbar";
+
+// Merge field definition type
+type MergeFieldDefinition = {
+   path: string;
+   label: string;
+   category?: string;
+};
 import { ElementsSidebar } from "./ElementsSidebar";
 import { PageSizeSettings } from "./PageSizeSettings";
 // html2pdf is imported dynamically to avoid "self is not defined" error during SSR
@@ -44,7 +53,21 @@ const INITIAL_CONTENT = /*html*/`<div class="content-flow" data-container="true"
 const generateDocId = () => `doc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 const defaultPagePreset = PAGE_PRESETS.find(p => p.default)!;
 
-export default function DragAndDropBuilder() {
+export default function DragAndDropBuilder({
+   user = {
+      name: 'John Doe',
+      email: 'john.doe@example.com',
+      id: '1',
+      company_name: 'Example Company'
+   }
+}: {
+   user?: {
+      name: string
+      email: string
+      id: string,
+      company_name: string
+   };
+}) {
    // Single document with continuous content (MS Word-like)
    const [editorDocument, setEditorDocument] = useState<EditorDocument>(() => ({
       id: generateDocId(),
@@ -133,6 +156,41 @@ export default function DragAndDropBuilder() {
    const shadowRootRef = useRef<ShadowRoot | null>(null);
    const draggedElementRef = useRef<HTMLElement | null>(null);
    const [shadowReady, setShadowReady] = useState(false);
+
+   // Merge field data - all available data that can be merged
+   const mergeFieldData: MergeFieldData = useMemo(() => ({
+      user
+   }), [user]);
+
+   // Available merge field definitions for autocomplete
+   const availableMergeFields: MergeFieldDefinition[] = useMemo(() => [
+      { path: 'user.name', label: 'User Name', category: 'User' },
+      { path: 'user.email', label: 'User Email', category: 'User' },
+      { path: 'user.company_name', label: 'Company Name', category: 'User' },
+      { path: 'user.id', label: 'User ID', category: 'User' },
+   ], []);
+
+   // Merge field autocomplete state
+   const [mergeFieldSuggestions, setMergeFieldSuggestions] = useState<{
+      show: boolean;
+      position: { top: number; left: number };
+      query: string;
+      selectedIndex: number;
+   }>({ show: false, position: { top: 0, left: 0 }, query: '', selectedIndex: 0 });
+
+   // Filter suggestions based on query
+   const filteredMergeFields = useMemo(() => {
+      if (!mergeFieldSuggestions.query) return availableMergeFields;
+      const q = mergeFieldSuggestions.query.toLowerCase();
+      return availableMergeFields.filter(f =>
+         f.path.toLowerCase().includes(q) ||
+         f.label.toLowerCase().includes(q)
+      );
+   }, [availableMergeFields, mergeFieldSuggestions.query]);
+
+   // Refs to store merge field functions (to avoid dependency issues in useEffect)
+   const checkMergeFieldTriggerRef = useRef<() => void>(() => { });
+   const handleMergeFieldKeyDownRef = useRef<(e: KeyboardEvent) => void>(() => { });
 
    // Callback ref for shadow DOM attachment
    const setContainerRef = useCallback((node: HTMLDivElement | null) => {
@@ -661,15 +719,23 @@ export default function DragAndDropBuilder() {
          calculatePageBreaksRAF();
       };
 
-      // Input handler - live page recalculation
+      // Input handler - live page recalculation and merge field detection
       const handleInput = () => {
          calculatePageBreaksRAF();
+         // Check for merge field trigger ({{ pattern)
+         checkMergeFieldTriggerRef.current();
+      };
+
+      // Keydown handler for merge field autocomplete navigation
+      const handleKeyDown = (e: Event) => {
+         handleMergeFieldKeyDownRef.current(e as KeyboardEvent);
       };
 
       pagesWrapper.addEventListener('click', handleClick);
       pagesWrapper.addEventListener('paste', handlePaste as EventListener);
       pagesWrapper.addEventListener('focusout', handleBlur as EventListener);
       pagesWrapper.addEventListener('input', handleInput);
+      pagesWrapper.addEventListener('keydown', handleKeyDown);
 
       // Setup drag handlers
       const allDragBtns = shadow.querySelectorAll('.element-toolbar-btn[data-action="drag"]');
@@ -929,6 +995,7 @@ export default function DragAndDropBuilder() {
          pagesWrapper.removeEventListener('paste', handlePaste as EventListener);
          pagesWrapper.removeEventListener('focusout', handleBlur as EventListener);
          pagesWrapper.removeEventListener('input', handleInput);
+         pagesWrapper.removeEventListener('keydown', handleKeyDown);
          pagesWrapper.removeEventListener('dragover', handleDragOver);
          pagesWrapper.removeEventListener('dragleave', handleDragLeave);
          pagesWrapper.removeEventListener('drop', handleDrop);
@@ -1488,8 +1555,8 @@ export default function DragAndDropBuilder() {
       setTimeout(() => updateContentFromShadow(), 0);
    }, [updateContentFromShadow, saveHistory, selectedXPath]);
 
-   // Clean content for export
-   const cleanContent = (content: string): string => {
+   // Clean content for export (with optional merge field resolution)
+   const cleanContent = useCallback((content: string, resolveMerge: boolean = true): string => {
       const parser = new DOMParser();
       const doc = parser.parseFromString(`<div>${content}</div>`, 'text/html');
       const container = doc.body.firstElementChild;
@@ -1505,8 +1572,163 @@ export default function DragAndDropBuilder() {
       container.querySelectorAll('.page-break-spacer').forEach(el => el.remove());
       container.querySelectorAll('[data-editable]').forEach(el => el.removeAttribute('data-editable'));
 
-      return container.innerHTML;
-   };
+      let result = container.innerHTML;
+
+      // Resolve merge fields if requested
+      if (resolveMerge) {
+         result = resolveMergeFields(result, mergeFieldData);
+      }
+
+      return result;
+   }, [mergeFieldData]);
+
+   // Get caret position for positioning the autocomplete popup
+   const getCaretCoordinates = useCallback((): { top: number; left: number } | null => {
+      const shadow = shadowRootRef.current;
+      if (!shadow) return null;
+
+      const selection = (shadow as any).getSelection?.() ?? window.document.getSelection();
+      if (!selection || selection.rangeCount === 0) return null;
+
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+
+      return {
+         top: rect.bottom + window.scrollY,
+         left: rect.left + window.scrollX
+      };
+   }, []);
+
+   // Check for merge field trigger pattern and show autocomplete
+   checkMergeFieldTriggerRef.current = useCallback(() => {
+      const shadow = shadowRootRef.current;
+      if (!shadow) return;
+
+      const selection = (shadow as any).getSelection?.() ?? window.document.getSelection();
+      if (!selection || selection.rangeCount === 0) return;
+
+      const range = selection.getRangeAt(0);
+      const textNode = range.startContainer;
+
+      if (textNode.nodeType !== Node.TEXT_NODE) {
+         setMergeFieldSuggestions(prev => ({ ...prev, show: false }));
+         return;
+      }
+
+      const text = textNode.textContent || '';
+      const cursorPos = range.startOffset;
+
+      // Find the last {{ before cursor
+      const beforeCursor = text.slice(0, cursorPos);
+      const lastOpenBrace = beforeCursor.lastIndexOf('{{');
+
+      if (lastOpenBrace === -1) {
+         setMergeFieldSuggestions(prev => ({ ...prev, show: false }));
+         return;
+      }
+
+      // Check if there's a closing }} between {{ and cursor
+      const afterOpen = beforeCursor.slice(lastOpenBrace + 2);
+      if (afterOpen.includes('}}')) {
+         setMergeFieldSuggestions(prev => ({ ...prev, show: false }));
+         return;
+      }
+
+      // Extract the query (what user typed after {{)
+      const query = afterOpen;
+
+      // Get caret position for popup
+      const coords = getCaretCoordinates();
+      if (!coords) return;
+
+      setMergeFieldSuggestions({
+         show: true,
+         position: coords,
+         query,
+         selectedIndex: 0
+      });
+   }, [getCaretCoordinates]);
+
+   // Insert selected merge field from autocomplete
+   const insertMergeFieldFromAutocomplete = useCallback((field: MergeFieldDefinition) => {
+      const shadow = shadowRootRef.current;
+      if (!shadow) return;
+
+      const selection = (shadow as any).getSelection?.() ?? window.document.getSelection();
+      if (!selection || selection.rangeCount === 0) return;
+
+      const range = selection.getRangeAt(0);
+      const textNode = range.startContainer;
+
+      if (textNode.nodeType !== Node.TEXT_NODE) return;
+
+      const text = textNode.textContent || '';
+      const cursorPos = range.startOffset;
+      const beforeCursor = text.slice(0, cursorPos);
+      const lastOpenBrace = beforeCursor.lastIndexOf('{{');
+
+      if (lastOpenBrace === -1) return;
+
+      saveHistory();
+
+      // Replace from {{ to cursor with the full merge field
+      const newText = text.slice(0, lastOpenBrace) + `{{${field.path}}}` + text.slice(cursorPos);
+      textNode.textContent = newText;
+
+      // Move cursor after the inserted token
+      const newCursorPos = lastOpenBrace + field.path.length + 4; // 4 = {{}}
+      range.setStart(textNode, newCursorPos);
+      range.setEnd(textNode, newCursorPos);
+      selection.removeAllRanges();
+      selection.addRange(range);
+
+      setMergeFieldSuggestions({ show: false, position: { top: 0, left: 0 }, query: '', selectedIndex: 0 });
+      updateContentFromShadow();
+   }, [saveHistory, updateContentFromShadow]);
+
+   // Handle keyboard navigation in autocomplete
+   // Only intercepts keys when autocomplete popup is visible
+   handleMergeFieldKeyDownRef.current = useCallback((e: KeyboardEvent) => {
+      // Only handle keys if autocomplete is showing with suggestions
+      if (!mergeFieldSuggestions.show || filteredMergeFields.length === 0) {
+         // Close autocomplete on Escape even if no suggestions
+         if (e.key === 'Escape' && mergeFieldSuggestions.show) {
+            setMergeFieldSuggestions({ show: false, position: { top: 0, left: 0 }, query: '', selectedIndex: 0 });
+         }
+         return;
+      }
+
+      // Only intercept specific navigation keys for autocomplete
+      if (e.key === 'ArrowDown') {
+         e.preventDefault();
+         e.stopPropagation();
+         setMergeFieldSuggestions(prev => ({
+            ...prev,
+            selectedIndex: (prev.selectedIndex + 1) % filteredMergeFields.length
+         }));
+      } else if (e.key === 'ArrowUp') {
+         e.preventDefault();
+         e.stopPropagation();
+         setMergeFieldSuggestions(prev => ({
+            ...prev,
+            selectedIndex: (prev.selectedIndex - 1 + filteredMergeFields.length) % filteredMergeFields.length
+         }));
+      } else if (e.key === 'Enter' || e.key === 'Tab') {
+         e.preventDefault();
+         e.stopPropagation();
+
+         const selected = filteredMergeFields[mergeFieldSuggestions.selectedIndex];
+
+         if (selected) {
+            insertMergeFieldFromAutocomplete(selected);
+         }
+      } else if (e.key === 'Escape') {
+         e.preventDefault();
+         e.stopPropagation();
+         setMergeFieldSuggestions({ show: false, position: { top: 0, left: 0 }, query: '', selectedIndex: 0 });
+      }
+      // All other keys pass through normally (including Shift, Ctrl for selection)
+   }, [mergeFieldSuggestions.show, mergeFieldSuggestions.selectedIndex, filteredMergeFields, insertMergeFieldFromAutocomplete]);
 
    // Export
    const exportHTML = () => {
@@ -1672,14 +1894,20 @@ export default function DragAndDropBuilder() {
    const exportPDFWithHtml2Pdf = async (
       doc: ExportDoc,
       shadowRootRef: React.RefObject<ShadowRoot | null>,
-      editorDocument?: { pageWidth?: { value: number; unit: string } } // optional, for width
+      editorDocument?: { pageWidth?: { value: number; unit: string } }, // optional, for width
+      mergeData?: MergeFieldData // optional merge field data
    ) => {
       const shadow = shadowRootRef.current;
       if (!shadow) throw new Error("Shadow root not ready");
 
+      // Resolve merge fields in content before parsing
+      const resolvedContent = mergeData
+         ? resolveMergeFields(doc.content, mergeData)
+         : doc.content;
+
       // Parse snapshot
       const tempDiv = document.createElement("div");
-      tempDiv.innerHTML = doc.content;
+      tempDiv.innerHTML = resolvedContent;
 
       // Prefer exporting ONLY the actual content (avoids wrapper CSS mismatch)
       const contentFlow = tempDiv.querySelector(".content-flow") as HTMLElement | null;
@@ -1966,7 +2194,7 @@ export default function DragAndDropBuilder() {
                      <input type="file" accept=".html,.htm" onChange={importHTML} className="hidden" />
                   </label>
 
-                  <button onClick={() => exportPDFWithHtml2Pdf(editorDocument, shadowRootRef)} className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm">
+                  <button onClick={() => exportPDFWithHtml2Pdf(editorDocument, shadowRootRef, editorDocument, mergeFieldData)} className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm">
                      <Download size={16} />
                      Export PDF
                   </button>
@@ -2059,9 +2287,8 @@ export default function DragAndDropBuilder() {
                         return (
                            <div
                               key={index}
-                              className={`w-5 h-5 border cursor-pointer transition-colors ${
-                                 isHighlighted ? 'bg-green-500 border-green-600' : 'bg-white border-gray-300 hover:border-gray-400'
-                              }`}
+                              className={`w-5 h-5 border cursor-pointer transition-colors ${isHighlighted ? 'bg-green-500 border-green-600' : 'bg-white border-gray-300 hover:border-gray-400'
+                                 }`}
                               onMouseEnter={() => setTableHover({ rows: row, cols: col })}
                               onMouseLeave={() => setTableHover({ rows: 0, cols: 0 })}
                               onClick={() => {
@@ -2083,6 +2310,51 @@ export default function DragAndDropBuilder() {
                         Cancel
                      </button>
                   </div>
+               </div>
+            </div>
+         )}
+
+         {/* Merge Field Autocomplete Popup */}
+         {mergeFieldSuggestions.show && filteredMergeFields.length > 0 && (
+            <div
+               className="fixed bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-9999 min-w-[220px] max-h-[200px] overflow-y-auto"
+               style={{
+                  top: mergeFieldSuggestions.position.top + 4,
+                  left: mergeFieldSuggestions.position.left
+               }}
+               onMouseDown={(e) => e.preventDefault()} // Prevent blur when clicking popup
+            >
+               <div className="px-3 py-1.5 text-xs font-medium text-gray-500 border-b border-gray-100 bg-gray-50">
+                  Merge Fields {mergeFieldSuggestions.query && <span className="text-indigo-600">"{mergeFieldSuggestions.query}"</span>}
+               </div>
+               {filteredMergeFields.map((field, index) => (
+                  <div
+                     key={field.path}
+                     onMouseDown={(e) => {
+                        e.preventDefault(); // Prevent losing focus
+                        insertMergeFieldFromAutocomplete(field);
+                     }}
+                     onMouseEnter={() => setMergeFieldSuggestions(prev => ({ ...prev, selectedIndex: index }))}
+                     className={`w-full px-3 py-2 text-left flex items-center gap-2 transition-colors cursor-pointer ${index === mergeFieldSuggestions.selectedIndex
+                        ? 'bg-indigo-50 text-indigo-900'
+                        : 'hover:bg-gray-50 text-gray-700'
+                        }`}
+                  >
+                     <code className={`text-xs px-1.5 py-0.5 rounded font-mono ${index === mergeFieldSuggestions.selectedIndex
+                        ? 'bg-indigo-200 text-indigo-800'
+                        : 'bg-gray-100 text-gray-600'
+                        }`}>
+                        {field.path}
+                     </code>
+                     <span className="text-sm">{field.label}</span>
+                  </div>
+               ))}
+               <div className="px-3 py-1.5 text-xs text-gray-400 border-t border-gray-100 bg-gray-50">
+                  <kbd className="px-1 py-0.5 bg-gray-200 rounded text-gray-600">↑↓</kbd> navigate
+                  <span className="mx-2">·</span>
+                  <kbd className="px-1 py-0.5 bg-gray-200 rounded text-gray-600">Enter</kbd> select
+                  <span className="mx-2">·</span>
+                  <kbd className="px-1 py-0.5 bg-gray-200 rounded text-gray-600">Esc</kbd> close
                </div>
             </div>
          )}
