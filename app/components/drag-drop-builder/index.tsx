@@ -199,7 +199,7 @@ export default function DragAndDropBuilder({
 
    // Callback ref for shadow DOM attachment
    const setContainerRef = useCallback((node: HTMLDivElement | null) => {
-      if (node && !isPreviewMode) {
+      if (node) {
          containerRef.current = node;
          if (!node.shadowRoot) {
             shadowRootRef.current = node.attachShadow({ mode: 'open' });
@@ -212,7 +212,7 @@ export default function DragAndDropBuilder({
          shadowRootRef.current = null;
          setShadowReady(false);
       }
-   }, [isPreviewMode]);
+   }, []);
 
    // Get selected element from shadow DOM
    const getSelectedElement = (): HTMLElement | null => {
@@ -386,7 +386,7 @@ export default function DragAndDropBuilder({
 
    // Main render effect - renders content into shadow DOM
    useEffect(() => {
-      if (isPreviewMode || !shadowReady) return;
+      if (!shadowReady) return;
 
       const shadow = shadowRootRef.current;
       if (!shadow) return;
@@ -507,6 +507,67 @@ export default function DragAndDropBuilder({
                font-size: 11px;
                color: #6b7280;
             }
+
+            /* Preview Mode Styles */
+            .pages-wrapper[data-preview-mode="true"] {
+               padding: 20px;
+            }
+
+            .pages-wrapper[data-preview-mode="true"] .document-header {
+               display: none;
+            }
+
+            .pages-wrapper[data-preview-mode="true"] .page-overlay {
+               display: none;
+            }
+
+            .pages-wrapper[data-preview-mode="true"] .pages-container {
+               height: auto !important;
+               min-height: auto !important;
+               box-shadow: none;
+            }
+
+            .pages-wrapper[data-preview-mode="true"] .element-toolbar {
+               display: none !important;
+               visibility: hidden !important;
+               opacity: 0 !important;
+               pointer-events: none !important;
+            }
+
+            .pages-wrapper[data-preview-mode="true"] [data-xpath]:hover,
+            .pages-wrapper[data-preview-mode="true"] [data-xpath]:focus,
+            .pages-wrapper[data-preview-mode="true"] [data-selected="true"] {
+               outline: none !important;
+               box-shadow: none !important;
+            }
+
+            .pages-wrapper[data-preview-mode="true"] [data-xpath] {
+               cursor: default !important;
+               pointer-events: none !important;
+            }
+
+            .pages-wrapper[data-preview-mode="true"] .content-flow {
+               pointer-events: none !important;
+            }
+
+            .pages-wrapper[data-preview-mode="true"] [contenteditable],
+            .pages-wrapper[data-preview-mode="true"] [contenteditable="true"] {
+               cursor: default !important;
+               -webkit-user-modify: read-only !important;
+               -moz-user-modify: read-only !important;
+               user-modify: read-only !important;
+               pointer-events: none !important;
+               caret-color: transparent !important;
+            }
+
+            .pages-wrapper[data-preview-mode="true"] .content-flow:empty::before,
+            .pages-wrapper[data-preview-mode="true"] .content-flow:not(:has([data-xpath]))::before {
+               display: none;
+            }
+
+            .pages-wrapper[data-preview-mode="true"] [data-empty="true"]::before {
+               display: none !important;
+            }
          </style>
          <div class="pages-wrapper">
             <div class="document-header">
@@ -521,9 +582,25 @@ export default function DragAndDropBuilder({
          </div>
       `;
 
-      const pagesWrapper = shadow.querySelector('.pages-wrapper');
+      const pagesWrapper = shadow.querySelector('.pages-wrapper') as HTMLElement;
       const contentFlow = shadow.querySelector('.content-flow');
       if (!pagesWrapper || !contentFlow) return;
+
+      // Set preview mode attribute
+      if (isPreviewMode) {
+         pagesWrapper.setAttribute('data-preview-mode', 'true');
+         // Remove all toolbars and disable editing in preview mode
+         shadow.querySelectorAll('.element-toolbar').forEach(el => el.remove());
+         shadow.querySelectorAll('[contenteditable]').forEach(el => {
+            el.removeAttribute('contenteditable');
+         });
+         shadow.querySelectorAll('[data-selected]').forEach(el => {
+            el.removeAttribute('data-selected');
+         });
+         return;
+      } else {
+         pagesWrapper.removeAttribute('data-preview-mode');
+      }
 
       // Setup elements for editing
       contentFlow.querySelectorAll('*').forEach(el => {
@@ -729,17 +806,119 @@ export default function DragAndDropBuilder({
          }
       };
 
-      // Paste handler
-      const handlePaste = (e: ClipboardEvent) => {
-         const target = e.target as HTMLElement;
-         if (!target.hasAttribute('contenteditable')) return;
+      // Helper function to sanitize text for paste
+      const sanitizePasteText = (text: string): string => {
+         return text
+            // Remove zero-width characters
+            .replace(/[\u200B-\u200D\uFEFF]/g, '')
+            // Replace non-breaking spaces with regular spaces
+            .replace(/\u00A0/g, ' ')
+            // Remove other invisible/control characters (except newlines and tabs)
+            .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '')
+            // Normalize line endings
+            .replace(/\r\n/g, '\n')
+            .replace(/\r/g, '\n')
+            // Remove excessive whitespace (more than 2 consecutive newlines)
+            .replace(/\n{3,}/g, '\n\n')
+            // Trim trailing whitespace from each line
+            .replace(/[ \t]+$/gm, '');
+      };
 
-         e.preventDefault();
-         const plainText = e.clipboardData?.getData('text/plain') || '';
-         window.document.execCommand('insertText', false, plainText);
-         saveHistory();
-         updateContentFromShadow();
-         calculatePageBreaksRAF();
+      // Helper function to extract text from HTML
+      const htmlToPlainText = (html: string): string => {
+         const temp = document.createElement('div');
+         temp.innerHTML = html;
+         // Remove script and style elements
+         temp.querySelectorAll('script, style').forEach(el => el.remove());
+         // Get text content
+         return temp.textContent || temp.innerText || '';
+      };
+
+      // Store clipboard data from paste event for use in beforeinput
+      let pendingPasteData: { plainText: string; htmlContent: string } | null = null;
+
+      // Helper to find contenteditable parent
+      const findContentEditable = (el: HTMLElement | null): HTMLElement | null => {
+         while (el) {
+            if (el.isContentEditable || el.getAttribute('contenteditable') === 'true') {
+               return el;
+            }
+            el = el.parentElement;
+         }
+         return null;
+      };
+
+      // Paste handler - captures clipboard data
+      const handlePaste = (e: ClipboardEvent) => {
+         const target = findContentEditable(e.target as HTMLElement);
+         if (!target) return;
+
+         // Store the clipboard data for use in beforeinput handler
+         pendingPasteData = {
+            plainText: e.clipboardData?.getData('text/plain') || '',
+            htmlContent: e.clipboardData?.getData('text/html') || ''
+         };
+      };
+
+      // BeforeInput handler - intercepts the actual paste insertion
+      const handleBeforeInput = (e: InputEvent) => {
+         const target = findContentEditable(e.target as HTMLElement);
+         if (!target) return;
+
+         // Only handle paste operations
+         if (e.inputType === 'insertFromPaste') {
+            e.preventDefault();
+
+            let plainText = '';
+
+            // Use stored clipboard data if available
+            if (pendingPasteData) {
+               plainText = pendingPasteData.plainText;
+               const htmlContent = pendingPasteData.htmlContent;
+
+               // If HTML content exists, extract text from it as fallback
+               if (htmlContent) {
+                  const textFromHtml = htmlToPlainText(htmlContent);
+                  if (!plainText || plainText.includes('\ufffc') || plainText.includes('\ufffd')) {
+                     plainText = textFromHtml;
+                  }
+               }
+               pendingPasteData = null;
+            } else if (e.dataTransfer) {
+               // Fallback to dataTransfer if available
+               plainText = e.dataTransfer.getData('text/plain') || '';
+               const htmlContent = e.dataTransfer.getData('text/html') || '';
+               if (htmlContent) {
+                  const textFromHtml = htmlToPlainText(htmlContent);
+                  if (!plainText || plainText.includes('\ufffc') || plainText.includes('\ufffd')) {
+                     plainText = textFromHtml;
+                  }
+               }
+            }
+
+            plainText = sanitizePasteText(plainText);
+
+            // Don't paste if nothing left after sanitization
+            if (!plainText) return;
+
+            // Insert sanitized text using Selection API (works in Shadow DOM)
+            const selection = (shadow as unknown as { getSelection?: () => Selection | null }).getSelection?.() || window.getSelection();
+            if (selection && selection.rangeCount > 0) {
+               const range = selection.getRangeAt(0);
+               range.deleteContents();
+               const textNode = document.createTextNode(plainText);
+               range.insertNode(textNode);
+               range.setStartAfter(textNode);
+               range.setEndAfter(textNode);
+               selection.removeAllRanges();
+               selection.addRange(range);
+               target.normalize();
+            }
+
+            saveHistory();
+            updateContentFromShadow();
+            calculatePageBreaksRAF();
+         }
       };
 
       // Input handler - live page recalculation and merge field detection
@@ -780,7 +959,8 @@ export default function DragAndDropBuilder({
       };
 
       pagesWrapper.addEventListener('click', handleClick);
-      pagesWrapper.addEventListener('paste', handlePaste as EventListener);
+      pagesWrapper.addEventListener('paste', handlePaste as EventListener, { capture: true });
+      pagesWrapper.addEventListener('beforeinput', handleBeforeInput as EventListener, { capture: true });
       pagesWrapper.addEventListener('focusout', handleBlur as EventListener);
       pagesWrapper.addEventListener('input', handleInput);
       pagesWrapper.addEventListener('keydown', handleKeyDown);
@@ -1040,7 +1220,8 @@ export default function DragAndDropBuilder({
 
       return () => {
          pagesWrapper.removeEventListener('click', handleClick);
-         pagesWrapper.removeEventListener('paste', handlePaste as EventListener);
+         pagesWrapper.removeEventListener('paste', handlePaste as EventListener, { capture: true });
+         pagesWrapper.removeEventListener('beforeinput', handleBeforeInput as EventListener, { capture: true });
          pagesWrapper.removeEventListener('focusout', handleBlur as EventListener);
          pagesWrapper.removeEventListener('input', handleInput);
          pagesWrapper.removeEventListener('keydown', handleKeyDown);
@@ -2227,8 +2408,8 @@ export default function DragAndDropBuilder({
                <div className="flex items-center gap-2">
                   <button
                      onClick={() => {
-                        if (isPreviewMode) setEditorKey(k => k + 1);
-                        else { setSelectedXPath(null) }
+                        setSelectedXPath(null);
+                        setEditorKey(k => k + 1);
                         setIsPreviewMode(!isPreviewMode);
                      }}
                      className={`flex items-center gap-2 px-4 py-2 rounded text-sm ${isPreviewMode ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'} `}
@@ -2267,28 +2448,13 @@ export default function DragAndDropBuilder({
 
             {/* Canvas */}
             <div className="flex-1 overflow-auto bg-gray-300">
-               {isPreviewMode ? (
-                  <div className="p-6">
-                     <div
-                        className="bg-white shadow-lg mx-auto"
-                        style={{
-                           width: `${editorDocument.pageWidth.value}${editorDocument.pageWidth.unit} `,
-                           minHeight: `${(editorDocument.pageHeight?.value || 0) * pageCount}${editorDocument.pageHeight?.unit} `
-                        }}
-                        dangerouslySetInnerHTML={{ __html: cleanContent(editorDocument.content) }}
-                     />
+               {!isPreviewMode && draggedComponent && (
+                  <div className="bg-green-50 border-b border-green-300 p-3 text-center text-sm text-green-700">
+                     <GripVertical className="inline mr-2" size={16} />
+                     Dragging <strong>{draggedComponent.label}</strong> - Drop into the document
                   </div>
-               ) : (
-                  <>
-                     {draggedComponent && (
-                        <div className="bg-green-50 border-b border-green-300 p-3 text-center text-sm text-green-700">
-                           <GripVertical className="inline mr-2" size={16} />
-                           Dragging <strong>{draggedComponent.label}</strong> - Drop into the document
-                        </div>
-                     )}
-                     <div key={`editor-${editorKey}`} ref={setContainerRef} className="h-full" />
-                  </>
                )}
+               <div key={`editor-${editorKey}`} ref={setContainerRef} className="h-full" />
             </div>
          </div>
 
