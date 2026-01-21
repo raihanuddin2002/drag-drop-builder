@@ -180,7 +180,7 @@ export const CONTAINER_LAYOUT_BLOCKS: Block[] = [
       icon: <Square size={20} />,
       category: 'container',
       html: /* html */`
-            <div style='display: flex; gap: 15px; margin: 10px 0;' data-column-container='true'>
+            <div style='display: flex; margin:10px 0;' data-column-container='true'>
                 <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
             </div>
         `
@@ -191,7 +191,7 @@ export const CONTAINER_LAYOUT_BLOCKS: Block[] = [
       icon: <Square size={20} />,
       category: 'container',
       html: /* html */`
-         <div style='display: flex; gap: 15px; margin: 10px 0;' data-column-container='true'>
+         <div style='display: flex; margin:10px 0;' data-column-container='true'>
             <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
             <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
          </div>
@@ -203,10 +203,10 @@ export const CONTAINER_LAYOUT_BLOCKS: Block[] = [
       icon: <Square size={20} />,
       category: 'container',
       html: /* html */`
-         <div style='display: flex; gap: 10px; margin:10px 0;' data-column-container='true'>
-            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
-            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
-            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
+         <div style='display: flex; gap: 10px; margin: 10px 0;' data-column-container='true'>
+            <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
+            <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
+            <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
          </div>
       `
    },
@@ -216,11 +216,11 @@ export const CONTAINER_LAYOUT_BLOCKS: Block[] = [
       icon: <Square size={20} />,
       category: 'container',
       html: /* html */`
-         <div style='display: flex; gap: 10px; margin:10px 0;' data-column-container='true'>
-            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
-            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
-            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
-            <div class='drop-zone' style='flex: 1; padding: 10px; min-height: 100px;'></div>
+         <div style='display: flex; margin: 0;' data-column-container='true'>
+            <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
+            <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
+            <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
+            <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
          </div>
       `
    },
@@ -230,7 +230,7 @@ export const CONTAINER_LAYOUT_BLOCKS: Block[] = [
       icon: <Square size={20} />,
       category: 'container',
       html: /* html */`
-         <div style='display: flex; gap: 15px; margin:10px 0;' data-column-container='true'>
+         <div style='display: flex; margin: 0;' data-column-container='true'>
             <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
             <div class='drop-zone' style='flex: 2; min-height: 100px;'></div>
          </div>
@@ -242,7 +242,7 @@ export const CONTAINER_LAYOUT_BLOCKS: Block[] = [
       icon: <Square size={20} />,
       category: 'container',
       html: /* html */`
-         <div style='display: flex; gap: 15px; margin:10px 0;' data-column-container='true'>
+         <div style='display: flex; margin:10px 0;' data-column-container='true'>
             <div class='drop-zone' style='flex: 2; min-height: 100px;'></div>
             <div class='drop-zone' style='flex: 1; min-height: 100px;'></div>
          </div>
@@ -364,16 +364,10 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
         }
        
         .drop-zone {
-            min-height: 80px;
-            border: 0.5px dashed #cbd5e1;
-            padding: 10px;
             transition: all 0.2s;
             position: relative;
-            border-radius: 5px;
         }
-        .drop-zone:hover {
-            border:1px solid #22c55e;
-        }
+     
         .drop-zone.drag-over {
             border-color: #22c55e !important;
             background: rgba(34, 197, 94, 0.1) !important;
@@ -592,7 +586,7 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
         .drop-zone:empty::after {
             display: grid;
             content: 'Drag & Drop content here';
-            border: 2px dashed #00ab5552;
+            border: 1px dashed #00ab5552;
             font-weight: 600;
             border-radius: 6px;
             text-align: center;

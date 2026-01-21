@@ -159,7 +159,8 @@ export default function DragAndDropBuilder({
 
    // Merge field data - all available data that can be merged
    const mergeFieldData: MergeFieldData = useMemo(() => ({
-      user
+      user,
+      client: user
    }), [user]);
 
    // Available merge field definitions for autocomplete
@@ -168,6 +169,10 @@ export default function DragAndDropBuilder({
       { path: 'user.email', label: 'User Email', category: 'User' },
       { path: 'user.company_name', label: 'Company Name', category: 'User' },
       { path: 'user.id', label: 'User ID', category: 'User' },
+      { path: 'client.name', label: 'Client Name', category: 'Client' },
+      { path: 'client.email', label: 'Client Email', category: 'Client' },
+      { path: 'client.company_name', label: 'Client Company Name', category: 'Client' },
+      { path: 'client.id', label: 'Client ID', category: 'Client' },
    ], []);
 
    // Merge field autocomplete state
@@ -757,8 +762,8 @@ export default function DragAndDropBuilder({
                const hasNonToolbarContent = Array.from(target.childNodes).some(node =>
                   (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) ||
                   (node.nodeType === Node.ELEMENT_NODE &&
-                   !(node as Element).classList.contains('element-toolbar') &&
-                   (node as Element).tagName !== 'BR')
+                     !(node as Element).classList.contains('element-toolbar') &&
+                     (node as Element).tagName !== 'BR')
                );
                if (!hasNonToolbarContent && !target.querySelector(':scope > br')) {
                   target.appendChild(document.createElement('br'));
