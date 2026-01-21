@@ -285,16 +285,17 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             overflow-wrap: break-word;
         }
 
-        [data-xpath]:not([data-container="true"]):not(.drop-zone):not([data-column-container="true"]) {
+        [data-xpath]:not([data-container="true"]):not(.drop-zone):not([data-column-container="true"]):not([data-table-container="true"]) {
             position: relative;
             max-width: 100%;
         }
-        [data-xpath]:not([data-container="true"]):not(.drop-zone):not([data-column-container="true"]):hover {
+        [data-xpath]:not([data-container="true"]):not(.drop-zone):not([data-column-container="true"]):not([data-table-container="true"]):hover {
             outline: 2px solid #22c55e !important;
             outline-offset: 2px;
         }
-        /* Prevent hover outline on elements inside a selected column container */
-        [data-column-container="true"][data-selected="true"] [data-xpath]:hover {
+        /* Prevent hover outline on elements inside a selected column/table container */
+        [data-column-container="true"][data-selected="true"] [data-xpath]:hover,
+        [data-table-container="true"][data-selected="true"] [data-xpath]:hover {
             outline: none !important;
         }
         [data-selected="true"] {
@@ -405,10 +406,10 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             display: flex !important;
         }
 
-        /* Table container styling */
+        /* Table container styling - same pattern as column-container */
         [data-table-container="true"] {
-            position: relative;
             transition: all 0.2s;
+            position: relative;
         }
         [data-table-container="true"]:hover {
             outline: 2px solid #3b82f6;
@@ -417,6 +418,23 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
         [data-table-container="true"][data-selected="true"] {
             outline: 2px solid #3b82f6 !important;
             outline-offset: 4px;
+        }
+        /* Table container toolbar - blue theme, visible on hover */
+        .table-toolbar {
+            position: absolute !important;
+            background: #3b82f6 !important;
+            top: -35px !important;
+            left: 10px !important;
+            transform: none !important;
+            z-index: 1000 !important;
+            flex-shrink: 0 !important;
+        }
+        [data-table-container="true"] > .table-toolbar {
+            display: none !important;
+        }
+        [data-table-container="true"]:hover > .table-toolbar,
+        [data-table-container="true"][data-selected="true"] > .table-toolbar {
+            display: flex !important;
         }
         [data-table-container="true"] td,
         [data-table-container="true"] th {

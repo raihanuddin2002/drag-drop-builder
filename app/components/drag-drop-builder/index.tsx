@@ -79,7 +79,8 @@ export default function DragAndDropBuilder() {
 
    // Generate table HTML
    const generateTableHtml = (rows: number, cols: number): string => {
-      let tableHtml = '<table data-table-container="true" style="border-collapse: collapse; width: 100%; margin: 10px 0;">';
+      let tableHtml = '<div data-table-container="true" style="margin: 10px 0;">';
+      tableHtml += '<table style="border-collapse: collapse; width: 100%;">';
       for (let r = 0; r < rows; r++) {
          tableHtml += '<tr>';
          for (let c = 0; c < cols; c++) {
@@ -88,6 +89,7 @@ export default function DragAndDropBuilder() {
          tableHtml += '</tr>';
       }
       tableHtml += '</table>';
+      tableHtml += '</div>';
       return tableHtml;
    };
 
@@ -488,11 +490,12 @@ export default function DragAndDropBuilder() {
             el.setAttribute('data-xpath', xpath);
 
             const isColumnContainer = el.hasAttribute('data-column-container');
+            const isTableContainer = el.hasAttribute('data-table-container');
             const shouldHaveToolbar = !el.hasAttribute('data-container') && !el.classList.contains('drop-zone');
 
             if (shouldHaveToolbar) {
                const toolbar = window.document.createElement('div');
-               toolbar.className = isColumnContainer ? 'element-toolbar column-toolbar' : 'element-toolbar';
+               toolbar.className = isColumnContainer ? 'element-toolbar column-toolbar' : isTableContainer ? 'element-toolbar table-toolbar' : 'element-toolbar';
                toolbar.setAttribute('contenteditable', 'false');
                toolbar.innerHTML = /*html*/`
                   <button class="element-toolbar-btn" data-action="drag" title="Drag">
@@ -596,9 +599,29 @@ export default function DragAndDropBuilder() {
                mouseEvent.preventDefault();
                mouseEvent.stopPropagation();
                setSelectedXPath(xpath);
-
             }
             return;
+         }
+
+         // Handle table container clicks - select the table container
+         if (target.hasAttribute('data-table-container')) {
+            const xpath = target.getAttribute('data-xpath');
+            if (xpath) {
+               mouseEvent.preventDefault();
+               mouseEvent.stopPropagation();
+               setSelectedXPath(xpath);
+            }
+            return;
+         }
+
+         // Handle clicks inside table (cells) - select parent table container
+         const parentTableContainer = target.closest('[data-table-container="true"]') as HTMLElement;
+         if (parentTableContainer && (target.tagName === 'TD' || target.tagName === 'TH' || target.tagName === 'TR' || target.tagName === 'TABLE')) {
+            const xpath = parentTableContainer.getAttribute('data-xpath');
+            if (xpath) {
+               setSelectedXPath(xpath);
+            }
+            // Don't return - allow contenteditable to work
          }
 
          const elementWithXPath = target.closest('[data-xpath]') as HTMLElement;
@@ -1850,7 +1873,9 @@ export default function DragAndDropBuilder() {
 
       // Detect table context
       const isTable = el.tagName === 'TABLE' || el.hasAttribute('data-table-container');
-      const tableElement = el.closest('table') as HTMLTableElement | null;
+      const tableElement = el.hasAttribute('data-table-container')
+         ? el.querySelector('table') as HTMLTableElement | null
+         : el.closest('table') as HTMLTableElement | null;
       const isTableCell = ['TD', 'TH'].includes(el.tagName);
       let cellRowIndex: number | undefined;
       let cellColIndex: number | undefined;
