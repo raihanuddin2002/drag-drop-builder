@@ -1,4 +1,4 @@
-import { Clock, Code, Image, Menu, Minus, Share2, Square, Table, Type, Video } from "lucide-react";
+import { AlignVerticalSpaceAround, Clock, Code, Image, Menu, Minus, Share2, Square, Table, Type, Video } from "lucide-react";
 import { Block, EditorPage, PagePreset } from "./type";
 
 export const NON_EDITABLE_TAGS = ['IMG', 'HR', 'BR', 'STYLE', 'SCRIPT', 'BODY', 'CANVAS', 'IFRAME', 'SPAN', 'B', 'I', 'STRONG', 'EM'];
@@ -77,6 +77,32 @@ export const wrapPageInDocument = (page: EditorPage, styles: string = ''): strin
 
 export const COMPONENT_BLOCKS: Block[] = [
    {
+      id: 'heading',
+      label: 'Heading',
+      icon: <Type size={20} />,
+      category: 'blocks',
+      html: /* html */`<h2 style='color: #333; margin: 0;'><br></h2>`
+   },
+   {
+      id: 'text',
+      label: 'Text',
+      icon: <Type size={20} />,
+      category: 'blocks',
+      html: /* html */`<p style='margin: 0px;'><br></p>`
+   },
+   {
+      id: 'button',
+      label: 'Button',
+      icon: <Square size={20} />,
+      category: 'blocks',
+      html: /* html */`
+         <a
+            href="#"
+            style='display: inline-block; padding: 12px 30px; background: #3b82f6; color: white; text-decoration: none; border-radius: 4px; margin: 10px 0;'
+         ><br></a>
+      `
+   },
+   {
       id: 'image',
       label: 'Image',
       icon: <Image size={20} />,
@@ -90,39 +116,25 @@ export const COMPONENT_BLOCKS: Block[] = [
       `
    },
    {
-      id: 'text',
-      label: 'Text',
-      icon: <Type size={20} />,
+      id: 'divider',
+      label: 'Divider',
+      icon: <Minus size={20} />,
       category: 'blocks',
-      html: /* html */`<p style='margin: 0px;'> </p > `
-   },
-   {
-      id: 'button',
-      label: 'Button',
-      icon: <Square size={20} />,
-      category: 'blocks',
-      html: /* html */`
-         <a 
-            href="#"
-            style='display: inline-block; padding: 12px 30px; background: #3b82f6; color: white; text-decoration: none; border-radius: 4px; margin: 10px 0;'
-         >
-            
-         </a> 
-      `
+      html: /* html */`<div class='editor-divider' style='border: none; height:2px; background: #e5e7eb; margin: 30px 0;'></div> `
    },
    {
       id: 'spacer',
       label: 'Spacer',
-      icon: <Minus size={20} />,
+      icon: <AlignVerticalSpaceAround size={20} />,
       category: 'blocks',
-      html: /* html */`<div data-element-type='spacer' style='height: 40px;'></div > `
+      html: /* html */`<div data-element-type='spacer' style='height: 40px;'></div>`
    },
    {
-      id: 'heading',
-      label: 'Heading',
-      icon: <Type size={20} />,
+      id: 'table',
+      label: 'Table',
+      icon: <Table size={20} />,
       category: 'blocks',
-      html: /* html */`<h2 style='color: #333; margin: 0;'></h2 > `
+      html: '__TABLE_PLACEHOLDER__' // Special marker - will be replaced with actual table after size selection
    },
    // {
    //    id: 'video',
@@ -159,20 +171,6 @@ export const COMPONENT_BLOCKS: Block[] = [
    //    category: 'blocks',
    //    html: /* html */`<div data-html-block='true' style='padding: 15px; background: #f5f5f5; margin: 15px 0; font-family: monospace; border-radius: 4px;'>Custom HTML Block</div > `
    // },
-   {
-      id: 'divider',
-      label: 'Divider',
-      icon: <Minus size={20} />,
-      category: 'blocks',
-      html: /* html */`<div class='editor-divider' style='border: none; height:2px; background: #e5e7eb; margin: 30px 0;'></div> `
-   },
-   {
-      id: 'table',
-      label: 'Table',
-      icon: <Table size={20} />,
-      category: 'blocks',
-      html: '__TABLE_PLACEHOLDER__' // Special marker - will be replaced with actual table after size selection
-   },
 ];
 
 export const CONTAINER_LAYOUT_BLOCKS: Block[] = [
@@ -519,6 +517,105 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
         }
         .merge-field-token.invalid:hover {
             background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
+        }
+
+        /* Text and heading elements - maintain minimum size when empty */
+        p[data-xpath],
+        h1[data-xpath],
+        h2[data-xpath],
+        h3[data-xpath],
+        h4[data-xpath],
+        h5[data-xpath],
+        h6[data-xpath],
+        a[data-xpath] {
+            min-height: 1.5em;
+            min-width: 50px;
+            display: block;
+            position: relative;
+        }
+
+        /* Empty elements need a zero-width space for cursor positioning */
+        p[data-empty="true"],
+        h1[data-empty="true"],
+        h2[data-empty="true"],
+        h3[data-empty="true"],
+        h4[data-empty="true"],
+        h5[data-empty="true"],
+        h6[data-empty="true"],
+        a[data-empty="true"] {
+            min-height: 1.5em;
+        }
+
+        /* Placeholder for empty text blocks - positioned absolutely to not block cursor */
+        p[data-empty="true"]::before {
+            content: 'Type your text here...';
+            color: #9ca3af;
+            font-style: italic;
+            pointer-events: none;
+            position: absolute;
+            left: 0;
+            top: 0;
+            white-space: nowrap;
+        }
+
+        /* Placeholder for empty heading blocks */
+        h1[data-empty="true"]::before,
+        h2[data-empty="true"]::before,
+        h3[data-empty="true"]::before,
+        h4[data-empty="true"]::before,
+        h5[data-empty="true"]::before,
+        h6[data-empty="true"]::before {
+            content: 'Type your heading here...';
+            color: #9ca3af;
+            font-style: italic;
+            pointer-events: none;
+            position: absolute;
+            left: 0;
+            top: 0;
+            white-space: nowrap;
+        }
+
+        /* Placeholder for empty button/link blocks */
+        a[data-empty="true"]::before {
+            content: 'Button text...';
+            color: rgba(255,255,255,0.7);
+            font-style: italic;
+            pointer-events: none;
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            white-space: nowrap;
+        }
+
+        /* Placeholder for empty drop-zone containers - full design */
+        .drop-zone:empty::after {
+            display: grid;
+            content: 'Drag & Drop content here';
+            border: 2px dashed #00ab5552;
+            font-weight: 600;
+            border-radius: 6px;
+            text-align: center;
+            padding: 20px;
+            font-family: Poppins, sans-serif;
+            font-size: 11px;
+            color: #647381;
+            height: 100%;
+            width: 100%;
+            margin-inline: auto;
+            justify-items: center;
+            box-sizing: border-box;
+            background-color: #00ab551f;
+            align-items: center;
+        }
+
+        /* Placeholder for empty table cells */
+        [data-table-container="true"] td:empty::after,
+        [data-table-container="true"] th:empty::after {
+            content: 'Type here...';
+            color: #9ca3af;
+            font-style: italic;
+            pointer-events: none;
         }
     `
 }

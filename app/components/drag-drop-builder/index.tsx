@@ -571,6 +571,24 @@ export default function DragAndDropBuilder({
 
                if (!isColumnContainer && isEditableElement(el as HTMLElement)) {
                   el.setAttribute('contenteditable', 'true');
+
+                  // Check if element is empty for placeholder styling
+                  const clone = el.cloneNode(true) as HTMLElement;
+                  clone.querySelectorAll('.element-toolbar').forEach(t => t.remove());
+                  const textContent = clone.textContent?.trim() || '';
+                  const isEmpty = textContent === '' || clone.innerHTML.trim() === '' || clone.innerHTML.trim() === '<br>';
+
+                  if (isEmpty) {
+                     el.setAttribute('data-empty', 'true');
+                     // Add a <br> for cursor positioning if element is completely empty
+                     const hasContent = Array.from(el.childNodes).some(node =>
+                        (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) ||
+                        (node.nodeType === Node.ELEMENT_NODE && !(node as Element).classList.contains('element-toolbar'))
+                     );
+                     if (!hasContent) {
+                        el.appendChild(document.createElement('br'));
+                     }
+                  }
                }
             }
          }
@@ -720,10 +738,35 @@ export default function DragAndDropBuilder({
       };
 
       // Input handler - live page recalculation and merge field detection
-      const handleInput = () => {
+      const handleInput = (e: Event) => {
          calculatePageBreaksRAF();
          // Check for merge field trigger ({{ pattern)
          checkMergeFieldTriggerRef.current();
+
+         // Toggle data-empty attribute for placeholder styling
+         const target = e.target as HTMLElement;
+         if (target.hasAttribute('contenteditable') && target.hasAttribute('data-xpath')) {
+            const clone = target.cloneNode(true) as HTMLElement;
+            clone.querySelectorAll('.element-toolbar').forEach(t => t.remove());
+            const textContent = clone.textContent?.trim() || '';
+            const hasOnlyBr = clone.innerHTML.trim() === '<br>' || clone.innerHTML.trim() === '';
+
+            if (textContent === '' || hasOnlyBr) {
+               target.setAttribute('data-empty', 'true');
+               // Ensure there's a <br> for cursor positioning
+               const hasNonToolbarContent = Array.from(target.childNodes).some(node =>
+                  (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) ||
+                  (node.nodeType === Node.ELEMENT_NODE &&
+                   !(node as Element).classList.contains('element-toolbar') &&
+                   (node as Element).tagName !== 'BR')
+               );
+               if (!hasNonToolbarContent && !target.querySelector(':scope > br')) {
+                  target.appendChild(document.createElement('br'));
+               }
+            } else {
+               target.removeAttribute('data-empty');
+            }
+         }
       };
 
       // Keydown handler for merge field autocomplete navigation
