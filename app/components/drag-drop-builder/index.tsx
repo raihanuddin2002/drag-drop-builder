@@ -837,15 +837,9 @@ export default function DragAndDropBuilder({
       // Store clipboard data from paste event for use in beforeinput
       let pendingPasteData: { plainText: string; htmlContent: string } | null = null;
 
-      // Helper to find contenteditable parent
+      // Helper to find contenteditable parent with data-xpath (uses native closest() which is browser-optimized)
       const findContentEditable = (el: HTMLElement | null): HTMLElement | null => {
-         while (el) {
-            if (el.isContentEditable || el.getAttribute('contenteditable') === 'true') {
-               return el;
-            }
-            el = el.parentElement;
-         }
-         return null;
+         return el?.closest('[contenteditable="true"][data-xpath]') as HTMLElement | null;
       };
 
       // Paste handler - captures clipboard data
@@ -913,6 +907,9 @@ export default function DragAndDropBuilder({
                selection.removeAllRanges();
                selection.addRange(range);
                target.normalize();
+
+               // Remove placeholder - the target should have both contenteditable and data-xpath
+               target.removeAttribute('data-empty');
             }
 
             saveHistory();
