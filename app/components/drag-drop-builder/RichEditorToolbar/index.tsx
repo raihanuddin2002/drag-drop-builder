@@ -15,7 +15,10 @@ import {
    Subscript,
    Superscript,
    Table,
-   Underline
+   Underline,
+   Trash2,
+   Plus,
+   Minus
 } from "lucide-react";
 import { useRef, useEffect, useState } from "react";
 import { RICH_TOOLBAR_FONT_FAMILIES, RICH_TOOLBAR_FONT_SIZES } from "../data";
@@ -26,9 +29,27 @@ export type RichTextToolbarProps = {
    onUpdateStyle?: (prop: string, value: string, livePreview?: boolean) => void;
    onCommitChanges?: () => void;
    elementInfo?: ElementInfo | null;
+   // Table manipulation callbacks
+   onAddTableRow?: (position: 'above' | 'below') => void;
+   onAddTableColumn?: (position: 'left' | 'right') => void;
+   onDeleteTableRow?: () => void;
+   onDeleteTableColumn?: () => void;
+   onDeleteTable?: () => void;
+   onOpenTableResize?: () => void;
 }
 
-export default function RichTextToolbar({ onFormat, onUpdateStyle, onCommitChanges, elementInfo }: RichTextToolbarProps) {
+export default function RichTextToolbar({
+   onFormat,
+   onUpdateStyle,
+   onCommitChanges,
+   elementInfo,
+   onAddTableRow,
+   onAddTableColumn,
+   onDeleteTableRow,
+   onDeleteTableColumn,
+   onDeleteTable,
+   onOpenTableResize
+}: RichTextToolbarProps) {
    const [fontSize, setFontSize] = useState('16px');
    const [fontFamily, setFontFamily] = useState('Arial');
    const [fontColor, setFontColor] = useState('#000000');
@@ -194,16 +215,23 @@ export default function RichTextToolbar({ onFormat, onUpdateStyle, onCommitChang
 
          <div className="w-px h-6 bg-gray-300 mx-1" />
 
-         {/* Table Insert */}
+         {/* Table Insert / Resize */}
          <div className="relative" ref={tableGridRef}>
             <button
                onMouseDown={(e) => {
                   e.preventDefault();
-                  saveSelection();
-                  setShowTableGrid(!showTableGrid);
+                  // If table is selected, use resize mode via callback
+                  if (elementInfo?.isTable || elementInfo?.isTableCell || elementInfo?.tableElement) {
+                     onOpenTableResize?.();
+                  } else {
+                     saveSelection();
+                     setShowTableGrid(!showTableGrid);
+                  }
                }}
-               className={`p-2 hover:bg-gray-100 rounded ${showTableGrid ? 'bg-gray-200' : ''}`}
-               title="Insert Table"
+               className={`p-2 hover:bg-gray-100 rounded ${showTableGrid ? 'bg-gray-200' : ''} ${
+                  (elementInfo?.isTable || elementInfo?.isTableCell || elementInfo?.tableElement) ? 'ring-2 ring-blue-300' : ''
+               }`}
+               title={(elementInfo?.isTable || elementInfo?.isTableCell || elementInfo?.tableElement) ? "Resize Table" : "Insert Table"}
             >
                <Table size={16} />
             </button>
@@ -236,6 +264,78 @@ export default function RichTextToolbar({ onFormat, onUpdateStyle, onCommitChang
                </div>
             )}
          </div>
+
+         {/* Table Edit Options - only show when table/cell is selected */}
+         {(elementInfo?.isTable || elementInfo?.isTableCell || elementInfo?.tableElement) && (
+            <>
+               <div className="w-px h-6 bg-gray-300 mx-1" />
+               <div className="flex items-center gap-1 bg-blue-50 rounded px-2 py-1">
+                  <span className="text-xs text-blue-600 font-medium">Table:</span>
+
+                  {/* Row controls */}
+                  <div className="flex items-center gap-0.5 border-r border-blue-200 pr-2 mr-1">
+                     <span className="text-xs text-gray-500">Row</span>
+                     <button
+                        onMouseDown={(e) => {
+                           e.preventDefault();
+                           onAddTableRow?.('below');
+                        }}
+                        className="p-1 hover:bg-blue-100 rounded text-blue-600"
+                        title="Add Row"
+                     >
+                        <Plus size={14} />
+                     </button>
+                     <button
+                        onMouseDown={(e) => {
+                           e.preventDefault();
+                           onDeleteTableRow?.();
+                        }}
+                        className="p-1 hover:bg-red-100 rounded text-red-500"
+                        title="Delete Row"
+                     >
+                        <Minus size={14} />
+                     </button>
+                  </div>
+
+                  {/* Column controls */}
+                  <div className="flex items-center gap-0.5 border-r border-blue-200 pr-2 mr-1">
+                     <span className="text-xs text-gray-500">Col</span>
+                     <button
+                        onMouseDown={(e) => {
+                           e.preventDefault();
+                           onAddTableColumn?.('right');
+                        }}
+                        className="p-1 hover:bg-blue-100 rounded text-blue-600"
+                        title="Add Column"
+                     >
+                        <Plus size={14} />
+                     </button>
+                     <button
+                        onMouseDown={(e) => {
+                           e.preventDefault();
+                           onDeleteTableColumn?.();
+                        }}
+                        className="p-1 hover:bg-red-100 rounded text-red-500"
+                        title="Delete Column"
+                     >
+                        <Minus size={14} />
+                     </button>
+                  </div>
+
+                  {/* Delete table */}
+                  <button
+                     onMouseDown={(e) => {
+                        e.preventDefault();
+                        onDeleteTable?.();
+                     }}
+                     className="p-1 hover:bg-red-100 rounded text-red-500"
+                     title="Delete Table"
+                  >
+                     <Trash2 size={14} />
+                  </button>
+               </div>
+            </>
+         )}
 
          <div className="w-px h-6 bg-gray-300 mx-1" />
 

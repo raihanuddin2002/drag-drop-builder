@@ -1,4 +1,4 @@
-import { Clock, Code, Image, Menu, Minus, Share2, Square, Type, Video } from "lucide-react";
+import { Clock, Code, Image, Menu, Minus, Share2, Square, Table, Type, Video } from "lucide-react";
 import { Block, EditorPage, PagePreset } from "./type";
 
 export const NON_EDITABLE_TAGS = ['IMG', 'HR', 'BR', 'STYLE', 'SCRIPT', 'BODY', 'CANVAS', 'IFRAME', 'SPAN', 'B', 'I', 'STRONG', 'EM'];
@@ -165,6 +165,13 @@ export const COMPONENT_BLOCKS: Block[] = [
       icon: <Minus size={20} />,
       category: 'blocks',
       html: /* html */`<div class='editor-divider' style='border: none; height:2px; background: #e5e7eb; margin: 30px 0;'></div> `
+   },
+   {
+      id: 'table',
+      label: 'Table',
+      icon: <Table size={20} />,
+      category: 'blocks',
+      html: '__TABLE_PLACEHOLDER__' // Special marker - will be replaced with actual table after size selection
    },
 ];
 
@@ -396,6 +403,30 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
         [data-column-container="true"]:hover > .column-toolbar,
         [data-column-container="true"][data-selected="true"] > .column-toolbar {
             display: flex !important;
+        }
+
+        /* Table container styling */
+        [data-table-container="true"] {
+            position: relative;
+            transition: all 0.2s;
+        }
+        [data-table-container="true"]:hover {
+            outline: 2px solid #3b82f6;
+            outline-offset: 4px;
+        }
+        [data-table-container="true"][data-selected="true"] {
+            outline: 2px solid #3b82f6 !important;
+            outline-offset: 4px;
+        }
+        [data-table-container="true"] td,
+        [data-table-container="true"] th {
+            position: relative;
+        }
+        [data-table-container="true"] td:focus,
+        [data-table-container="true"] th:focus {
+            outline: 2px solid #22c55e;
+            outline-offset: -2px;
+            background: rgba(34, 197, 94, 0.05);
         }
 
         /* Overflow warning indicator for oversized elements */

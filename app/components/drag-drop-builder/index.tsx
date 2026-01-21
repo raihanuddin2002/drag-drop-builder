@@ -68,6 +68,64 @@ export default function DragAndDropBuilder() {
    // History for undo/redo
    const [history, setHistory] = useState<{ past: EditorDocument[]; future: EditorDocument[] }>({ past: [], future: [] });
 
+   // Table size selector modal
+   const [showTableModal, setShowTableModal] = useState(false);
+   const [tableModalMode, setTableModalMode] = useState<'create' | 'resize'>('create');
+   const [tableHover, setTableHover] = useState({ rows: 0, cols: 0 });
+
+   const TABLE_GRID_ROWS = 8;
+   const TABLE_GRID_COLS = 10;
+   const TABLE_PLACEHOLDER_ID = 'table-placeholder-marker';
+
+   // Generate table HTML
+   const generateTableHtml = (rows: number, cols: number): string => {
+      let tableHtml = '<table data-table-container="true" style="border-collapse: collapse; width: 100%; margin: 10px 0;">';
+      for (let r = 0; r < rows; r++) {
+         tableHtml += '<tr>';
+         for (let c = 0; c < cols; c++) {
+            tableHtml += '<td style="border: 1px solid #ccc; padding: 8px; min-width: 50px;" contenteditable="true">&nbsp;</td>';
+         }
+         tableHtml += '</tr>';
+      }
+      tableHtml += '</table>';
+      return tableHtml;
+   };
+
+   // Insert table at the placeholder position
+   const insertTableAtPosition = (rows: number, cols: number) => {
+      const shadow = shadowRootRef.current;
+      if (!shadow) return;
+
+      const placeholder = shadow.querySelector(`#${TABLE_PLACEHOLDER_ID}`);
+      if (!placeholder) return;
+
+      const tableHtml = generateTableHtml(rows, cols);
+      saveHistory();
+
+      placeholder.insertAdjacentHTML('beforebegin', tableHtml);
+      placeholder.remove();
+
+      updateContentFromShadow();
+      calculatePageBreaksRAF();
+      setShowTableModal(false);
+      setTableHover({ rows: 0, cols: 0 });
+   };
+
+   // Close table modal
+   const closeTableModal = () => {
+      const shadow = shadowRootRef.current;
+      // Clean up placeholder if modal is cancelled (only in create mode)
+      if (shadow && tableModalMode === 'create') {
+         const placeholder = shadow.querySelector(`#${TABLE_PLACEHOLDER_ID}`);
+         if (placeholder) {
+            placeholder.remove();
+            updateContentFromShadow();
+         }
+      }
+      setShowTableModal(false);
+      setTableHover({ rows: 0, cols: 0 });
+   };
+
    // Refs
    const containerRef = useRef<HTMLDivElement | null>(null);
    const shadowRootRef = useRef<ShadowRoot | null>(null);
@@ -711,10 +769,23 @@ export default function DragAndDropBuilder() {
          shadow.querySelectorAll('.drag-over').forEach(zone => zone.classList.remove('drag-over'));
 
          if (dropIndicator) {
-            saveHistory();
-
             // elements block
             if (draggedComponent) {
+               // Check if it's a table block - insert placeholder and show modal
+               if (draggedComponent.id === 'table') {
+                  const placeholder = `<div id="${TABLE_PLACEHOLDER_ID}" style="display:none;"></div>`;
+                  dropIndicator.insertAdjacentHTML('beforebegin', placeholder);
+                  dropIndicator.remove();
+                  // Save placeholder to content before state changes trigger re-render
+                  updateContentFromShadow();
+                  setDraggedComponent(null);
+                  setTableModalMode('create');
+                  // Use setTimeout to ensure state updates complete before showing modal
+                  setTimeout(() => setShowTableModal(true), 0);
+                  return;
+               }
+
+               saveHistory();
                dropIndicator.insertAdjacentHTML('beforebegin', draggedComponent.html);
                dropIndicator.remove();
                setDraggedComponent(null);
@@ -760,6 +831,19 @@ export default function DragAndDropBuilder() {
 
          if (dropZone) {
             if (draggedComponent) {
+               // Check if it's a table block - insert placeholder and show modal
+               if (draggedComponent.id === 'table') {
+                  const placeholder = `<div id="${TABLE_PLACEHOLDER_ID}" style="display:none;"></div>`;
+                  dropZone.insertAdjacentHTML('beforeend', placeholder);
+                  // Save placeholder to content before state changes trigger re-render
+                  updateContentFromShadow();
+                  setDraggedComponent(null);
+                  setTableModalMode('create');
+                  // Use setTimeout to ensure state updates complete before showing modal
+                  setTimeout(() => setShowTableModal(true), 0);
+                  return;
+               }
+
                saveHistory();
                dropZone.insertAdjacentHTML('beforeend', draggedComponent.html);
                setDraggedComponent(null);
@@ -990,6 +1074,192 @@ export default function DragAndDropBuilder() {
       }
    }, [selectedXPath, saveHistory, updateContentFromShadow, calculatePageBreaksRAF]);
 
+   // Table manipulation functions
+   const addTableRow = useCallback((position: 'above' | 'below') => {
+      const shadow = shadowRootRef.current;
+      if (!selectedXPath || !shadow) return;
+
+      const el = shadow.querySelector(`[data-xpath="${selectedXPath}"]`) as HTMLElement;
+      if (!el) return;
+
+      const table = el.tagName === 'TABLE' ? el as HTMLTableElement : el.closest('table') as HTMLTableElement;
+      if (!table) return;
+
+      const row = el.closest('tr') as HTMLTableRowElement;
+      const rowIndex = row ? row.rowIndex : (position === 'above' ? 0 : table.rows.length - 1);
+      const colCount = table.rows[0]?.cells.length || 1;
+
+      saveHistory();
+
+      const newRow = table.insertRow(position === 'above' ? rowIndex : rowIndex + 1);
+      for (let i = 0; i < colCount; i++) {
+         const cell = newRow.insertCell();
+         cell.style.cssText = 'border: 1px solid #ccc; padding: 8px; min-width: 50px;';
+         cell.setAttribute('contenteditable', 'true');
+         cell.innerHTML = '&nbsp;';
+      }
+
+      updateContentFromShadow();
+      calculatePageBreaksRAF();
+   }, [selectedXPath, saveHistory, updateContentFromShadow, calculatePageBreaksRAF]);
+
+   const addTableColumn = useCallback((position: 'left' | 'right') => {
+      const shadow = shadowRootRef.current;
+      if (!selectedXPath || !shadow) return;
+
+      const el = shadow.querySelector(`[data-xpath="${selectedXPath}"]`) as HTMLElement;
+      if (!el) return;
+
+      const table = el.tagName === 'TABLE' ? el as HTMLTableElement : el.closest('table') as HTMLTableElement;
+      if (!table) return;
+
+      const cell = el.closest('td, th') as HTMLTableCellElement;
+      const colIndex = cell ? cell.cellIndex : (position === 'left' ? 0 : (table.rows[0]?.cells.length || 1) - 1);
+
+      saveHistory();
+
+      for (let i = 0; i < table.rows.length; i++) {
+         const newCell = table.rows[i].insertCell(position === 'left' ? colIndex : colIndex + 1);
+         newCell.style.cssText = 'border: 1px solid #ccc; padding: 8px; min-width: 50px;';
+         newCell.setAttribute('contenteditable', 'true');
+         newCell.innerHTML = '&nbsp;';
+      }
+
+      updateContentFromShadow();
+      calculatePageBreaksRAF();
+   }, [selectedXPath, saveHistory, updateContentFromShadow, calculatePageBreaksRAF]);
+
+   const deleteTableRow = useCallback(() => {
+      const shadow = shadowRootRef.current;
+      if (!selectedXPath || !shadow) return;
+
+      const el = shadow.querySelector(`[data-xpath="${selectedXPath}"]`) as HTMLElement;
+      if (!el) return;
+
+      const table = el.tagName === 'TABLE' ? el as HTMLTableElement : el.closest('table') as HTMLTableElement;
+      if (!table || table.rows.length <= 1) return;
+
+      const row = el.closest('tr') as HTMLTableRowElement;
+      if (!row) return;
+
+      saveHistory();
+      table.deleteRow(row.rowIndex);
+      updateContentFromShadow();
+      calculatePageBreaksRAF();
+   }, [selectedXPath, saveHistory, updateContentFromShadow, calculatePageBreaksRAF]);
+
+   const deleteTableColumn = useCallback(() => {
+      const shadow = shadowRootRef.current;
+      if (!selectedXPath || !shadow) return;
+
+      const el = shadow.querySelector(`[data-xpath="${selectedXPath}"]`) as HTMLElement;
+      if (!el) return;
+
+      const table = el.tagName === 'TABLE' ? el as HTMLTableElement : el.closest('table') as HTMLTableElement;
+      if (!table || !table.rows[0] || table.rows[0].cells.length <= 1) return;
+
+      const cell = el.closest('td, th') as HTMLTableCellElement;
+      if (!cell) return;
+
+      const colIndex = cell.cellIndex;
+
+      saveHistory();
+      for (let i = 0; i < table.rows.length; i++) {
+         if (table.rows[i].cells[colIndex]) {
+            table.rows[i].deleteCell(colIndex);
+         }
+      }
+
+      updateContentFromShadow();
+      calculatePageBreaksRAF();
+   }, [selectedXPath, saveHistory, updateContentFromShadow, calculatePageBreaksRAF]);
+
+   const deleteTable = useCallback(() => {
+      const shadow = shadowRootRef.current;
+      if (!selectedXPath || !shadow) return;
+
+      const el = shadow.querySelector(`[data-xpath="${selectedXPath}"]`) as HTMLElement;
+      if (!el) return;
+
+      const table = el.tagName === 'TABLE' ? el as HTMLTableElement : el.closest('table') as HTMLTableElement;
+      if (!table) return;
+
+      saveHistory();
+      table.remove();
+      setSelectedXPath(null);
+      updateContentFromShadow();
+      calculatePageBreaksRAF();
+   }, [selectedXPath, saveHistory, updateContentFromShadow, calculatePageBreaksRAF]);
+
+   // Resize existing table to new dimensions
+   const resizeTable = useCallback((newRows: number, newCols: number) => {
+      const shadow = shadowRootRef.current;
+      if (!selectedXPath || !shadow) return;
+
+      const el = shadow.querySelector(`[data-xpath="${selectedXPath}"]`) as HTMLElement;
+      if (!el) return;
+
+      const table = el.tagName === 'TABLE' ? el as HTMLTableElement : el.closest('table') as HTMLTableElement;
+      if (!table) return;
+
+      saveHistory();
+
+      const currentRows = table.rows.length;
+      const currentCols = table.rows[0]?.cells.length || 0;
+
+      // Adjust rows
+      if (newRows > currentRows) {
+         // Add rows
+         for (let i = currentRows; i < newRows; i++) {
+            const newRow = table.insertRow();
+            for (let j = 0; j < Math.max(currentCols, newCols); j++) {
+               const cell = newRow.insertCell();
+               cell.style.cssText = 'border: 1px solid #ccc; padding: 8px; min-width: 50px;';
+               cell.setAttribute('contenteditable', 'true');
+               cell.innerHTML = '&nbsp;';
+            }
+         }
+      } else if (newRows < currentRows) {
+         // Remove rows from the end
+         for (let i = currentRows - 1; i >= newRows; i--) {
+            table.deleteRow(i);
+         }
+      }
+
+      // Adjust columns
+      const updatedRows = table.rows.length;
+      for (let i = 0; i < updatedRows; i++) {
+         const row = table.rows[i];
+         const currentColsInRow = row.cells.length;
+
+         if (newCols > currentColsInRow) {
+            // Add columns
+            for (let j = currentColsInRow; j < newCols; j++) {
+               const cell = row.insertCell();
+               cell.style.cssText = 'border: 1px solid #ccc; padding: 8px; min-width: 50px;';
+               cell.setAttribute('contenteditable', 'true');
+               cell.innerHTML = '&nbsp;';
+            }
+         } else if (newCols < currentColsInRow) {
+            // Remove columns from the end
+            for (let j = currentColsInRow - 1; j >= newCols; j--) {
+               row.deleteCell(j);
+            }
+         }
+      }
+
+      updateContentFromShadow();
+      calculatePageBreaksRAF();
+      setShowTableModal(false);
+      setTableHover({ rows: 0, cols: 0 });
+   }, [selectedXPath, saveHistory, updateContentFromShadow, calculatePageBreaksRAF]);
+
+   // Open table size modal for resizing
+   const openTableResizeModal = useCallback(() => {
+      setTableModalMode('resize');
+      setShowTableModal(true);
+   }, []);
+
    const handleSidebarDragStart = (component: Block): void => {
       setDraggedComponent(component);
    };
@@ -1132,6 +1402,60 @@ export default function DragAndDropBuilder() {
                ? `${currentMargin + step}px`
                : `${Math.max(0, currentMargin - step)}px`;
             updateContentFromShadow();
+         }
+         return;
+      }
+
+      // Handle insertHTML for table insertion
+      if (command === 'insertHTML' && value) {
+         const range = selection.getRangeAt(0);
+
+         // Find the contenteditable element or content-flow container
+         let insertTarget: HTMLElement | null = null;
+         let node: Node | null = range.startContainer;
+
+         while (node) {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+               const el = node as HTMLElement;
+               if (el.hasAttribute('contenteditable') || el.hasAttribute('data-container')) {
+                  insertTarget = el;
+                  break;
+               }
+            }
+            if (node === shadow || !node.parentNode) break;
+            node = node.parentNode;
+         }
+
+         // If no contenteditable found, insert into content-flow
+         if (!insertTarget) {
+            insertTarget = shadow.querySelector('.content-flow') as HTMLElement;
+         }
+
+         if (insertTarget) {
+            saveHistory();
+
+            // Create a temporary container to parse the HTML
+            const temp = window.document.createElement('div');
+            temp.innerHTML = value;
+
+            // Insert at cursor position if inside contenteditable, otherwise append to container
+            if (insertTarget.hasAttribute('contenteditable') && !range.collapsed) {
+               range.deleteContents();
+            }
+
+            const frag = window.document.createDocumentFragment();
+            while (temp.firstChild) {
+               frag.appendChild(temp.firstChild);
+            }
+
+            if (insertTarget.hasAttribute('data-container')) {
+               insertTarget.appendChild(frag);
+            } else {
+               range.insertNode(frag);
+            }
+
+            updateContentFromShadow();
+            calculatePageBreaksRAF();
          }
          return;
       }
@@ -1524,7 +1848,23 @@ export default function DragAndDropBuilder() {
          inlineLinks.push({ href: link.getAttribute('href') || '', text: link.textContent || '', index });
       });
 
-      return { tag, styles, content, innerHTML, src, href, alt, isHtmlBlock, customCss, inlineLinks };
+      // Detect table context
+      const isTable = el.tagName === 'TABLE' || el.hasAttribute('data-table-container');
+      const tableElement = el.closest('table') as HTMLTableElement | null;
+      const isTableCell = ['TD', 'TH'].includes(el.tagName);
+      let cellRowIndex: number | undefined;
+      let cellColIndex: number | undefined;
+
+      if (isTableCell && el.parentElement) {
+         const row = el.parentElement as HTMLTableRowElement;
+         cellRowIndex = row.rowIndex;
+         cellColIndex = (el as HTMLTableCellElement).cellIndex;
+      }
+
+      return {
+         tag, styles, content, innerHTML, src, href, alt, isHtmlBlock, customCss, inlineLinks,
+         isTable, isTableCell, tableElement, cellRowIndex, cellColIndex
+      };
    };
 
    const elementInfo = getElementInfo();
@@ -1614,6 +1954,12 @@ export default function DragAndDropBuilder() {
                   onUpdateStyle={updateStyle}
                   onCommitChanges={() => { saveHistory(); updateContentFromShadow(); }}
                   elementInfo={elementInfo}
+                  onAddTableRow={addTableRow}
+                  onAddTableColumn={addTableColumn}
+                  onDeleteTableRow={deleteTableRow}
+                  onDeleteTableColumn={deleteTableColumn}
+                  onDeleteTable={deleteTable}
+                  onOpenTableResize={openTableResizeModal}
                />
             )}
 
@@ -1663,6 +2009,55 @@ export default function DragAndDropBuilder() {
                      onClose={() => { setSelectedXPath(null) }}
                   />
                )}
+            </div>
+         )}
+
+         {/* Table Size Selector Modal */}
+         {showTableModal && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+               <div className="bg-white rounded-lg shadow-xl p-6">
+                  <div className="text-lg font-medium mb-4">
+                     {tableModalMode === 'create' ? 'Insert Table' : 'Resize Table'}
+                  </div>
+                  <div className="text-sm text-gray-600 mb-3 text-center">
+                     {tableHover.rows > 0 ? `${tableHover.rows} × ${tableHover.cols}` : 'Select table size'}
+                  </div>
+                  <div
+                     className="grid gap-1 mb-4"
+                     style={{ gridTemplateColumns: `repeat(${TABLE_GRID_COLS}, 1fr)` }}
+                  >
+                     {Array.from({ length: TABLE_GRID_ROWS * TABLE_GRID_COLS }).map((_, index) => {
+                        const row = Math.floor(index / TABLE_GRID_COLS) + 1;
+                        const col = (index % TABLE_GRID_COLS) + 1;
+                        const isHighlighted = row <= tableHover.rows && col <= tableHover.cols;
+                        return (
+                           <div
+                              key={index}
+                              className={`w-5 h-5 border cursor-pointer transition-colors ${
+                                 isHighlighted ? 'bg-green-500 border-green-600' : 'bg-white border-gray-300 hover:border-gray-400'
+                              }`}
+                              onMouseEnter={() => setTableHover({ rows: row, cols: col })}
+                              onMouseLeave={() => setTableHover({ rows: 0, cols: 0 })}
+                              onClick={() => {
+                                 if (tableModalMode === 'create') {
+                                    insertTableAtPosition(row, col);
+                                 } else {
+                                    resizeTable(row, col);
+                                 }
+                              }}
+                           />
+                        );
+                     })}
+                  </div>
+                  <div className="flex justify-end">
+                     <button
+                        onClick={closeTableModal}
+                        className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded"
+                     >
+                        Cancel
+                     </button>
+                  </div>
+               </div>
             </div>
          )}
       </div>
