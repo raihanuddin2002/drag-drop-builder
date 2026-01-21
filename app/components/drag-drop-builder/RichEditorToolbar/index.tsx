@@ -14,6 +14,7 @@ import {
    Strikethrough,
    Subscript,
    Superscript,
+   Table,
    Underline
 } from "lucide-react";
 import { useRef, useEffect, useState } from "react";
@@ -32,8 +33,43 @@ export default function RichTextToolbar({ onFormat, onUpdateStyle, onCommitChang
    const [fontFamily, setFontFamily] = useState('Arial');
    const [fontColor, setFontColor] = useState('#000000');
    const [textAlign, setTextAlign] = useState('left');
+   const [showTableGrid, setShowTableGrid] = useState(false);
+   const [tableHover, setTableHover] = useState({ rows: 0, cols: 0 });
    const savedSelectionRef = useRef<Range | null>(null);
    const colorInputRef = useRef<HTMLInputElement>(null);
+   const tableGridRef = useRef<HTMLDivElement>(null);
+
+   const TABLE_GRID_ROWS = 8;
+   const TABLE_GRID_COLS = 10;
+
+   // Close table grid when clicking outside
+   useEffect(() => {
+      const handleClickOutside = (e: MouseEvent) => {
+         if (tableGridRef.current && !tableGridRef.current.contains(e.target as Node)) {
+            setShowTableGrid(false);
+         }
+      };
+      if (showTableGrid) {
+         document.addEventListener('mousedown', handleClickOutside);
+      }
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+   }, [showTableGrid]);
+
+   // Insert table HTML
+   const insertTable = (rows: number, cols: number) => {
+      let tableHtml = '<table style="border-collapse: collapse; width: 100%;">';
+      for (let r = 0; r < rows; r++) {
+         tableHtml += '<tr>';
+         for (let c = 0; c < cols; c++) {
+            tableHtml += '<td style="border: 1px solid #ccc; padding: 8px; min-width: 50px;">&nbsp;</td>';
+         }
+         tableHtml += '</tr>';
+      }
+      tableHtml += '</table><p><br></p>';
+      onFormat('insertHTML', tableHtml);
+      setShowTableGrid(false);
+      setTableHover({ rows: 0, cols: 0 });
+   };
 
    // Sync with elementInfo when it changes
    useEffect(() => {
@@ -155,6 +191,51 @@ export default function RichTextToolbar({ onFormat, onUpdateStyle, onCommitChang
          >
             <Unlink size={16} />
          </button>
+
+         <div className="w-px h-6 bg-gray-300 mx-1" />
+
+         {/* Table Insert */}
+         <div className="relative" ref={tableGridRef}>
+            <button
+               onMouseDown={(e) => {
+                  e.preventDefault();
+                  saveSelection();
+                  setShowTableGrid(!showTableGrid);
+               }}
+               className={`p-2 hover:bg-gray-100 rounded ${showTableGrid ? 'bg-gray-200' : ''}`}
+               title="Insert Table"
+            >
+               <Table size={16} />
+            </button>
+            {showTableGrid && (
+               <div className="absolute top-full left-0 mt-1 bg-white border rounded shadow-lg p-2 z-50">
+                  <div className="text-xs text-gray-600 mb-2 text-center">
+                     {tableHover.rows > 0 ? `${tableHover.rows} × ${tableHover.cols}` : 'Select table size'}
+                  </div>
+                  <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${TABLE_GRID_COLS}, 1fr)` }}>
+                     {Array.from({ length: TABLE_GRID_ROWS * TABLE_GRID_COLS }).map((_, index) => {
+                        const row = Math.floor(index / TABLE_GRID_COLS) + 1;
+                        const col = (index % TABLE_GRID_COLS) + 1;
+                        const isHighlighted = row <= tableHover.rows && col <= tableHover.cols;
+                        return (
+                           <div
+                              key={index}
+                              className={`w-4 h-4 border cursor-pointer transition-colors ${
+                                 isHighlighted ? 'bg-blue-500 border-blue-600' : 'bg-white border-gray-300 hover:border-gray-400'
+                              }`}
+                              onMouseEnter={() => setTableHover({ rows: row, cols: col })}
+                              onMouseLeave={() => setTableHover({ rows: 0, cols: 0 })}
+                              onClick={() => {
+                                 restoreSelection();
+                                 insertTable(row, col);
+                              }}
+                           />
+                        );
+                     })}
+                  </div>
+               </div>
+            )}
+         </div>
 
          <div className="w-px h-6 bg-gray-300 mx-1" />
 
