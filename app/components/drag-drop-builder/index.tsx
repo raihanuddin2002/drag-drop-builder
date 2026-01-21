@@ -517,10 +517,6 @@ export default function DragAndDropBuilder({
                display: none;
             }
 
-            .pages-wrapper[data-preview-mode="true"] .page-overlay {
-               display: none;
-            }
-
             .pages-wrapper[data-preview-mode="true"] .pages-container {
                height: auto !important;
                min-height: auto !important;
@@ -597,6 +593,28 @@ export default function DragAndDropBuilder({
          shadow.querySelectorAll('[data-selected]').forEach(el => {
             el.removeAttribute('data-selected');
          });
+
+         // Add data-xpath for pagination calculation in preview mode
+         const addXPathForPreview = (el: Element): void => {
+            if (el.nodeType !== 1) return;
+            if (
+               !NON_EDITABLE_TAGS.includes(el.tagName?.toUpperCase())
+               && !el.classList.contains('pages-wrapper')
+               && !el.classList.contains('pages-container')
+               && !el.classList.contains('document-header')
+               && !el.classList.contains('element-toolbar')
+               && !el.classList.contains('page-break-spacer')
+               && !el.closest('.page-break-spacer')
+            ) {
+               const xpath = generateXPath(el as HTMLElement, contentFlow as HTMLElement);
+               el.setAttribute('data-xpath', xpath);
+            }
+            Array.from(el.children).forEach(addXPathForPreview);
+         };
+         Array.from(contentFlow.children).forEach(addXPathForPreview);
+
+         // Calculate page breaks for preview mode
+         calculatePageBreaksRAF();
          return;
       } else {
          pagesWrapper.removeAttribute('data-preview-mode');
