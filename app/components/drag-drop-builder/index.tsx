@@ -391,7 +391,6 @@ export default function DragAndDropBuilder({
                   <button
                      onClick={() => {
                         setSelectedEid(null);
-                        setEditorKey(k => k + 1);
                         setIsPreviewMode(!isPreviewMode);
                      }}
                      className={`flex items-center gap-2 px-4 py-2 rounded text-sm ${isPreviewMode ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'} `}
