@@ -540,9 +540,41 @@ export function useEditorRenderer({
          }
       };
 
-      // Keydown handler for merge field autocomplete navigation
+      // Keydown handler for merge field autocomplete navigation and Enter key handling
       const handleKeyDown = (e: Event) => {
-         handleMergeFieldKeyDownRef.current(e as KeyboardEvent);
+         const keyEvent = e as KeyboardEvent;
+         const target = keyEvent.target as HTMLElement;
+
+         // Handle Enter key in contenteditable elements - insert <br> instead of creating new blocks
+         if (keyEvent.key === 'Enter' && !keyEvent.shiftKey) {
+            const isContentEditable = target.hasAttribute('contenteditable') && target.getAttribute('contenteditable') === 'true';
+
+            if (isContentEditable && target.hasAttribute('data-xpath')) {
+               keyEvent.preventDefault();
+
+               const selection = (shadow as unknown as { getSelection?: () => Selection | null }).getSelection?.() || window.getSelection();
+               if (selection && selection.rangeCount > 0) {
+                  const range = selection.getRangeAt(0);
+                  range.deleteContents();
+
+                  // Insert br element
+                  const br = document.createElement('br');
+                  range.insertNode(br);
+
+                  // Move cursor after the br
+                  range.setStartAfter(br);
+                  range.setEndAfter(br);
+                  selection.removeAllRanges();
+                  selection.addRange(range);
+
+                  // Trigger input event to update page breaks
+                  target.dispatchEvent(new Event('input', { bubbles: true }));
+               }
+               return;
+            }
+         }
+
+         handleMergeFieldKeyDownRef.current(keyEvent);
       };
 
       pagesWrapper.addEventListener('click', handleClick);
