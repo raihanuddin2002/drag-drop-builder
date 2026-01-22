@@ -1,7 +1,5 @@
 import { JSX } from "react";
 
-export type Breakpoint = 'desktop' | 'tablet' | 'mobile';
-
 export type ElementStyles = {
    [key: string]: string;
 }

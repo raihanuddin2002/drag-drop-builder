@@ -373,6 +373,13 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             background: rgba(34, 197, 94, 0.1) !important;
             border: 1px dashed #cbd5e1;
         }
+        /* Drag-over state for containers */
+        [data-container="true"].drag-over,
+        [data-column-container="true"].drag-over {
+            outline: 2px dashed #22c55e !important;
+            outline-offset: 4px;
+            background: rgba(34, 197, 94, 0.05) !important;
+        }
         .drop-indicator {
             height: 4px;
             background: #22c55e;
