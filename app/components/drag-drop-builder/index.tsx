@@ -78,7 +78,6 @@ export default function DragAndDropBuilder({
    // const [breakpoint, setBreakpoint] = useState<Breakpoint>('desktop');
    const [draggedComponent, setDraggedComponent] = useState<Block | null>(null);
    const [isPreviewMode, setIsPreviewMode] = useState<boolean>(false);
-   const [editorKey, setEditorKey] = useState<number>(0);
 
    // History for undo/redo - using useHistory hook
    const {
@@ -440,7 +439,7 @@ export default function DragAndDropBuilder({
                      Dragging <strong>{draggedComponent.label}</strong> - Drop into the document
                   </div>
                )}
-               <div key={`editor-${editorKey}`} ref={setContainerRef} className="h-full" />
+               <div ref={setContainerRef} className="h-full" />
             </div>
          </div>
 
