@@ -57,7 +57,7 @@ export function useEditorRenderer({
    setupPasteHandlers
 }: UseEditorRendererOptions) {
    // mount state
-   const mountedRef = useRef(false);
+   const mountedShadowRef = useRef<ShadowRoot | null>(null);
    const cleanupRef = useRef<(() => void) | null>(null);
 
    // typing / external apply guards
@@ -308,10 +308,22 @@ export function useEditorRenderer({
       if (!shadowReady) return;
 
       const shadow = shadowRootRef.current;
+      // if (!shadow) return;
+
+      // if (mountedRef.current) return;
+      // mountedRef.current = true;
+
       if (!shadow) return;
 
-      if (mountedRef.current) return;
-      mountedRef.current = true;
+      // already mounted into this exact shadow root
+      if (mountedShadowRef.current === shadow) return;
+
+      // ✅ if we were mounted elsewhere, cleanup first
+      cleanupRef.current?.();
+      cleanupRef.current = null;
+
+      // mark current shadow as mounted
+      mountedShadowRef.current = shadow;
 
       shadow.innerHTML = /*html*/ `
       <style id="editor-dynamic-styles"></style>
@@ -827,7 +839,10 @@ export function useEditorRenderer({
       return () => {
          cleanupRef.current?.();
          cleanupRef.current = null;
-         mountedRef.current = false;
+
+         if (mountedShadowRef.current === shadow) {
+            mountedShadowRef.current = null;
+         }
       };
    }, [
       shadowReady,
@@ -845,7 +860,7 @@ export function useEditorRenderer({
 
    // Effect B: Update styles/header/preview and apply external content changes
    useEffect(() => {
-      if (!shadowReady || !mountedRef.current) return;
+      if (!shadowReady || !mountedShadowRef.current) return;
 
       const shadow = shadowRootRef.current;
       if (!shadow) return;
@@ -874,161 +889,162 @@ export function useEditorRenderer({
                   : `height: ${editorDocument.pageHeight?.value}${editorDocument.pageHeight?.unit} !important`;
 
             styleEl.textContent = /* css */ `
-        ${EditorStylesStr}
+               ${EditorStylesStr}
 
-        .pages-wrapper { padding: 40px 20px 60px; min-height: 100%; }
+               .pages-wrapper { padding: 40px 20px 60px; min-height: 100%; }
 
-        .document-header {
-          width: ${editorDocument.pageWidth?.value}${editorDocument.pageWidth?.unit};
-          margin: 0 auto 20px;
-          font-size: 12px;
-          color: #666;
-          display: flex;
-          gap: 16px;
-        }
+               .document-header {
+                  width: ${editorDocument.pageWidth?.value}${editorDocument.pageWidth?.unit};
+                  margin: 0 auto 20px;
+                  font-size: 12px;
+                  color: #666;
+                  display: flex;
+                  gap: 16px;
+               }
 
-        .pages-container {
-          position: relative;
-          width: ${editorDocument.pageWidth?.value}${editorDocument.pageWidth?.unit};
-          margin: 0 auto;
-          ${pagesContainerHeight};
-          background: white;
-          box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-          border-radius: 2px;
-        }
+               .pages-container {
+                  position: relative;
+                  width: ${editorDocument.pageWidth?.value}${editorDocument.pageWidth?.unit};
+                  margin: 0 auto;
+                  ${pagesContainerHeight};
+                  background: white;
+                  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+                  border-radius: 2px;
+               }
 
-        .content-flow {
-          position: relative;
-          min-height: ${containerFlowMinHeight};
-          padding: ${pagePadding}px;
-          box-sizing: border-box;
-        }
+               .content-flow {
+                  position: relative;
+                  min-height: ${containerFlowMinHeight};
+                  padding: ${pagePadding}px;
+                  box-sizing: border-box;
+               }
 
-        .content-flow > *:not(.page-break-spacer) { max-width: 100%; box-sizing: border-box; }
-        .content-flow img { max-width: 100%; height: auto; }
+               .content-flow > *:not(.page-break-spacer) { max-width: 100%; box-sizing: border-box; }
+               .content-flow img { max-width: 100%; height: auto; }
 
-        .content-flow:empty::before,
-        .content-flow:not(:has([data-eid]))::before {
-          content: "Drag elements here...";
-          color: #9ca3af;
-          font-style: italic;
-          display: block;
-        }
+               .content-flow:empty::before,
+               .content-flow:not(:has([data-eid]))::before {
+                  content: "Drag elements here...";
+                  color: #9ca3af;
+                  font-style: italic;
+                  display: block;
+               }
 
-        .page-overlay {
-          position: absolute;
-          top: 0; left: 0; right: 0; bottom: 0;
-          pointer-events: none;
-          z-index: 0;
-        }
+               .page-overlay {
+                  position: absolute;
+                  top: 0; left: 0; right: 0; bottom: 0;
+                  pointer-events: none;
+                  z-index: 0;
+               }
 
-        .page-overlay .page {
-          position: absolute;
-          left: 0; right: 0;
-          background: transparent;
-          border-bottom: 1px dashed #e5e7eb;
-        }
+               .page-overlay .page {
+                  position: absolute;
+                  left: 0; right: 0;
+                  background: transparent;
+                  border-bottom: 1px dashed #e5e7eb;
+               }
 
-        .page-overlay .page-label {
-          position: absolute;
-          bottom: -12px;
-          left: 50%;
-          transform: translateX(-50%);
-          font-size: 10px;
-          color: #9ca3af;
-          background: #f3f4f6;
-          padding: 2px 12px;
-          border-radius: 999px;
-          white-space: nowrap;
-        }
+               .page-overlay .page-label {
+                  position: absolute;
+                  bottom: -12px;
+                  left: 50%;
+                  transform: translateX(-50%);
+                  font-size: 10px;
+                  color: #9ca3af;
+                  background: #f3f4f6;
+                  padding: 2px 12px;
+                  border-radius: 999px;
+                  white-space: nowrap;
+               }
 
-        .page-overlay .page-gap {
-          position: absolute;
-          left: 0px;
-          box-shadow: rgba(0, 0, 0, 0.1) 0px 20px 20px -20px inset,
-                      rgba(0, 0, 0, 0.1) 0px -20px 20px -20px inset;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
+               .page-overlay .page-gap {
+                  position: absolute;
+                  left: 0px;
+                  box-shadow: rgba(0, 0, 0, 0.1) 0px 20px 20px -20px inset,
+                              rgba(0, 0, 0, 0.1) 0px -20px 20px -20px inset;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+               }
 
-        .page-overlay .page-gap-label { font-size: 11px; color: #6b7280; }
+               .page-overlay .page-gap-label { font-size: 11px; color: #6b7280; }
 
-        .pages-wrapper[data-preview-mode="true"] { padding: 20px; }
-        .pages-wrapper[data-preview-mode="true"] .document-header { display: none; }
-        .pages-wrapper[data-preview-mode="true"] .pages-container {
-          height: auto !important;
-          min-height: auto !important;
-          box-shadow: none;
-        }
+               .pages-wrapper[data-preview-mode="true"] { padding: 20px; }
+               .pages-wrapper[data-preview-mode="true"] .document-header { display: none; }
+               .pages-wrapper[data-preview-mode="true"] .pages-container {
+                  height: auto !important;
+                  min-height: auto !important;
+                  box-shadow: none;
+               }
 
-        .pages-wrapper[data-preview-mode="true"] .element-toolbar {
-          display: none !important;
-          visibility: hidden !important;
-          opacity: 0 !important;
-          pointer-events: none !important;
-        }
+               .pages-wrapper[data-preview-mode="true"] .element-toolbar {
+                  display: none !important;
+                  visibility: hidden !important;
+                  opacity: 0 !important;
+                  pointer-events: none !important;
+               }
 
-        .pages-wrapper[data-preview-mode="true"] [data-eid]:hover,
-        .pages-wrapper[data-preview-mode="true"] [data-eid]:focus,
-        .pages-wrapper[data-preview-mode="true"] [data-selected="true"] {
-          outline: none !important;
-          box-shadow: none !important;
-        }
+               .pages-wrapper[data-preview-mode="true"] [data-eid]:hover,
+               .pages-wrapper[data-preview-mode="true"] [data-eid]:focus,
+               .pages-wrapper[data-preview-mode="true"] [data-selected="true"] {
+                  outline: none !important;
+                  box-shadow: none !important;
+               }
 
-        .pages-wrapper[data-preview-mode="true"] [data-eid] {
-          cursor: default !important;
-          pointer-events: none !important;
-        }
+               .pages-wrapper[data-preview-mode="true"] [data-eid] {
+                  cursor: default !important;
+                  pointer-events: none !important;
+               }
 
-        .pages-wrapper[data-preview-mode="true"] .content-flow { pointer-events: none !important; }
+               .pages-wrapper[data-preview-mode="true"] .content-flow { pointer-events: none !important; }
 
-        .pages-wrapper[data-preview-mode="true"] [contenteditable],
-        .pages-wrapper[data-preview-mode="true"] [contenteditable="true"] {
-          cursor: default !important;
-          -webkit-user-modify: read-only !important;
-          -moz-user-modify: read-only !important;
-          user-modify: read-only !important;
-          pointer-events: none !important;
-          caret-color: transparent !important;
-        }
+               .pages-wrapper[data-preview-mode="true"] [contenteditable],
+               .pages-wrapper[data-preview-mode="true"] [contenteditable="true"] {
+                  cursor: default !important;
+                  -webkit-user-modify: read-only !important;
+                  -moz-user-modify: read-only !important;
+                  user-modify: read-only !important;
+                  pointer-events: none !important;
+                  caret-color: transparent !important;
+               }
 
-        .pages-wrapper[data-preview-mode="true"] .content-flow:empty::before,
-        .pages-wrapper[data-preview-mode="true"] .content-flow:not(:has([data-eid]))::before { display: none; }
+               .pages-wrapper[data-preview-mode="true"] .content-flow:empty::before,
+               .pages-wrapper[data-preview-mode="true"] .content-flow:not(:has([data-eid]))::before { display: none; }
 
-        .pages-wrapper[data-preview-mode="true"] [data-empty="true"]::before { display: none !important; }
+               .pages-wrapper[data-preview-mode="true"] [data-empty="true"]::before { display: none !important; }
 
-        /* Hide container editor artifacts in preview mode */
-        .pages-wrapper[data-preview-mode="true"] [data-column-container="true"] {
-          outline: none !important;
-          box-shadow: none !important;
-        }
-        .pages-wrapper[data-preview-mode="true"] [data-column-container="true"]::before {
-          display: none !important;
-        }
-        .pages-wrapper[data-preview-mode="true"] .column-toolbar,
-        .pages-wrapper[data-preview-mode="true"] .table-toolbar {
-          display: none !important;
-        }
-        .pages-wrapper[data-preview-mode="true"] [data-table-container="true"] {
-          outline: none !important;
-          box-shadow: none !important;
-        }
-        .pages-wrapper[data-preview-mode="true"] [data-table-container="true"]::before {
-          display: none !important;
-        }
-        .pages-wrapper[data-preview-mode="true"] .drop-zone {
-          min-height: 0 !important;
-        }
-        .pages-wrapper[data-preview-mode="true"] .drop-zone:empty::after {
-          display: none !important;
-        }
-        .pages-wrapper[data-preview-mode="true"] [data-table-container="true"] td:empty::after,
-        .pages-wrapper[data-preview-mode="true"] [data-table-container="true"] th:empty::after {
-          display: none !important;
-        }
-      `;
+               /* Hide container editor artifacts in preview mode */
+               .pages-wrapper[data-preview-mode="true"] [data-column-container="true"] {
+                  outline: none !important;
+                  box-shadow: none !important;
+               }
+               .pages-wrapper[data-preview-mode="true"] [data-column-container="true"]::before {
+                  display: none !important;
+               }
+               .pages-wrapper[data-preview-mode="true"] .column-toolbar,
+               .pages-wrapper[data-preview-mode="true"] .table-toolbar {
+                  display: none !important;
+               }
+               .pages-wrapper[data-preview-mode="true"] [data-table-container="true"] {
+                  outline: none !important;
+                  box-shadow: none !important;
+               }
+               .pages-wrapper[data-preview-mode="true"] [data-table-container="true"]::before {
+                  display: none !important;
+               }
+               .pages-wrapper[data-preview-mode="true"] .drop-zone {
+                  min-height: 0 !important;
+               }
+               .pages-wrapper[data-preview-mode="true"] .drop-zone:empty::after {
+                  display: none !important;
+               }
+               .pages-wrapper[data-preview-mode="true"] [data-table-container="true"] td:empty::after,
+               .pages-wrapper[data-preview-mode="true"] [data-table-container="true"] th:empty::after {
+                  display: none !important;
+               }
+            `;
          }
+
          lastAppliedDimensionsRef.current = dimensionKey;
       }
 
