@@ -21,10 +21,12 @@ export interface UseMergeFieldsOptions {
 }
 
 /**
- * Get caret coordinates for positioning popup
+ * Get caret coordinates for positioning popup (viewport-relative for position:fixed)
  */
-function getCaretCoordinates(): { top: number; left: number } | null {
-   const selection = window.getSelection();
+function getCaretCoordinates(shadowRoot?: ShadowRoot | null): { top: number; left: number } | null {
+   const selection = shadowRoot
+      ? (shadowRoot as any).getSelection?.() ?? window.getSelection()
+      : window.getSelection();
    if (!selection || selection.rangeCount === 0) return null;
 
    const range = selection.getRangeAt(0).cloneRange();
@@ -37,8 +39,8 @@ function getCaretCoordinates(): { top: number; left: number } | null {
 
    const rect = span.getBoundingClientRect();
    const coords = {
-      top: rect.bottom + window.scrollY,
-      left: rect.left + window.scrollX
+      top: rect.bottom,
+      left: rect.left
    };
 
    span.remove();
@@ -148,8 +150,8 @@ export function useMergeFields({
       // Extract the query (what user typed after {{)
       const query = afterOpen;
 
-      // Get caret position for popup
-      const coords = getCaretCoordinates();
+      // Get caret position for popup (pass shadow root for correct selection)
+      const coords = getCaretCoordinates(shadow);
       if (!coords) return;
 
       setSuggestions({
@@ -163,7 +165,7 @@ export function useMergeFields({
    // Update ref
    checkTriggerRef.current = checkTrigger;
 
-   // Insert selected merge field
+   // Insert selected merge field wrapped in a <code> element
    const insertField = useCallback((field: MergeFieldDefinition) => {
       const shadow = shadowRootRef.current;
       if (!shadow) return;
@@ -185,16 +187,35 @@ export function useMergeFields({
 
       onSaveHistory?.();
 
-      // Replace from {{ to cursor with the full merge field
-      const newText = text.slice(0, lastOpenBrace) + `{{${field.path}}}` + text.slice(cursorPos);
-      textNode.textContent = newText;
+      const parent = textNode.parentNode;
+      if (!parent) return;
 
-      // Move cursor after the inserted token
-      const newCursorPos = lastOpenBrace + field.path.length + 4; // 4 = {{}}
-      range.setStart(textNode, newCursorPos);
-      range.setEnd(textNode, newCursorPos);
+      // Split text into: before {{ | code element | after cursor
+      const beforeText = text.slice(0, lastOpenBrace);
+      const afterText = text.slice(cursorPos);
+
+      // Create the <code> element for the merge field
+      const codeEl = document.createElement('code');
+      codeEl.textContent = `{{${field.path}}}`;
+      codeEl.style.cssText = 'background:#eef2ff;color:#4338ca;padding:1px 4px;border-radius:3px;font-size:0.9em;';
+      codeEl.setAttribute('data-merge-field', field.path);
+      codeEl.contentEditable = 'false';
+
+      // Replace the text node with before text + code + after text
+      const beforeNode = document.createTextNode(beforeText);
+      const afterNode = document.createTextNode(afterText || '\u200B');
+
+      parent.insertBefore(beforeNode, textNode);
+      parent.insertBefore(codeEl, textNode);
+      parent.insertBefore(afterNode, textNode);
+      parent.removeChild(textNode);
+
+      // Place cursor after the code element
+      const newRange = document.createRange();
+      newRange.setStart(afterNode, afterText ? 0 : 1);
+      newRange.collapse(true);
       selection.removeAllRanges();
-      selection.addRange(range);
+      selection.addRange(newRange);
 
       closeSuggestions();
       onUpdateContent?.();

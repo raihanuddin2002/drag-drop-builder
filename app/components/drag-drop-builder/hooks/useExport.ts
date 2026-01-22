@@ -157,6 +157,11 @@ export function useExport({
       const container = doc.body.firstElementChild;
       if (!container) return content;
 
+      // Unwrap merge field <code> elements back to plain text
+      container.querySelectorAll('code[data-merge-field]').forEach(el => {
+         el.replaceWith(el.textContent || '');
+      });
+
       container.querySelectorAll('[data-eid]').forEach(el => {
          el.removeAttribute('data-eid');
          el.removeAttribute('data-selected');
@@ -249,6 +254,11 @@ export function useExport({
       exportRoot
          .querySelectorAll('.page-overlay, .page-gap, .page-gap-label, .page-count, .element-toolbar, #table-placeholder-marker')
          .forEach((el) => el.remove());
+
+      // Unwrap merge field <code> elements back to plain text
+      exportRoot.querySelectorAll('code[data-merge-field]').forEach((el) => {
+         el.replaceWith(el.textContent || '');
+      });
 
       // Remove placeholder attributes and classes
       exportRoot.querySelectorAll('[data-empty]').forEach((el) => el.removeAttribute('data-empty'));
