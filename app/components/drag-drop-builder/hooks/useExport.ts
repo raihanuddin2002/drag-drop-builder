@@ -165,7 +165,9 @@ export function useExport({
       });
       container.querySelectorAll('.element-toolbar').forEach(el => el.remove());
       container.querySelectorAll('.page-break-spacer').forEach(el => el.remove());
+      container.querySelectorAll('#table-placeholder-marker').forEach(el => el.remove());
       container.querySelectorAll('[data-editable]').forEach(el => el.removeAttribute('data-editable'));
+      container.querySelectorAll('[data-empty]').forEach(el => el.removeAttribute('data-empty'));
 
       let result = container.innerHTML;
 
@@ -235,8 +237,11 @@ export function useExport({
 
       // Remove editor-only UI elements
       exportRoot
-         .querySelectorAll('.page-overlay, .page-gap, .page-gap-label, .page-count, .element-toolbar')
+         .querySelectorAll('.page-overlay, .page-gap, .page-gap-label, .page-count, .element-toolbar, #table-placeholder-marker')
          .forEach((el) => el.remove());
+
+      // Remove placeholder attributes
+      exportRoot.querySelectorAll('[data-empty]').forEach((el) => el.removeAttribute('data-empty'));
 
       // Restore original margin-top if stored
       exportRoot.querySelectorAll<HTMLElement>('[data-page-break-before], [data-xpath]').forEach((el) => {
