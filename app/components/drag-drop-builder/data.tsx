@@ -395,6 +395,16 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             transition: all 0.2s;
             position: relative;
         }
+        /* Invisible hover bridge to reach toolbar */
+        [data-column-container="true"]::before {
+            content: '';
+            position: absolute;
+            top: -40px;
+            left: 0;
+            right: 0;
+            height: 40px;
+            pointer-events: auto;
+        }
         [data-column-container="true"]:hover {
             outline: 2px solid #3b82f6;
             outline-offset: 4px;
