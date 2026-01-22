@@ -578,7 +578,7 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
 
         /* Placeholder for empty button/link blocks */
         a[data-empty="true"]::before {
-            content: 'Button text...';
+            content: 'text...';
             color: rgba(255,255,255,0.7);
             font-style: italic;
             pointer-events: none;
