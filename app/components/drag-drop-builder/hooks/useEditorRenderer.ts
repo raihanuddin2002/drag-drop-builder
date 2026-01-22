@@ -627,8 +627,10 @@ export function useEditorRenderer({
             shadow.querySelectorAll('.drag-over').forEach(z => z.classList.remove('drag-over'));
             shadow.querySelector('.drop-indicator')?.remove();
 
+            // Always add drag-over to the container for visual feedback
+            container.classList.add('drag-over');
+
             if (!lastChild) {
-               container.classList.add('drag-over');
                return;
             }
 
@@ -660,7 +662,7 @@ export function useEditorRenderer({
 
       const handleDragLeave = (e: Event) => {
          const target = e.target as HTMLElement;
-         if (target.classList.contains('drop-zone') || target.hasAttribute('data-container')) {
+         if (target.classList.contains('drop-zone') || target.hasAttribute('data-container') || target.hasAttribute('data-column-container')) {
             target.classList.remove('drag-over');
          }
       };
