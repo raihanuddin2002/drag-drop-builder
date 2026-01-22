@@ -22,11 +22,11 @@ export const TABLE_PLACEHOLDER_ID = 'table-placeholder-marker';
  */
 export function generateTableHtml(rows: number, cols: number): string {
    let tableHtml = '<div data-table-container="true" style="margin: 10px 0;">';
-   tableHtml += '<table style="border-collapse: collapse; width: 100%;">';
+   tableHtml += '<table style="border-collapse: collapse; width: 100%; table-layout: fixed;">';
    for (let r = 0; r < rows; r++) {
       tableHtml += '<tr>';
       for (let c = 0; c < cols; c++) {
-         tableHtml += '<td style="border: 1px solid #ccc; padding: 8px; min-width: 50px;" contenteditable="true">&nbsp;</td>';
+         tableHtml += '<td style="border: 1px solid #ccc; padding: 8px; word-wrap: break-word; overflow-wrap: break-word;" contenteditable="true">&nbsp;</td>';
       }
       tableHtml += '</tr>';
    }
