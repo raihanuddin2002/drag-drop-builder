@@ -48,3 +48,11 @@ export type { UseRichTextOptions } from './useRichText';
 // Export hook - HTML and PDF export functionality
 export { useExport } from './useExport';
 export type { UseExportOptions, ExportDocument } from './useExport';
+
+// Element info hook - get info about selected element
+export { useElementInfo } from './useElementInfo';
+export type { UseElementInfoOptions } from './useElementInfo';
+
+// Editor renderer hook - renders content into shadow DOM
+export { useEditorRenderer } from './useEditorRenderer';
+export type { UseEditorRendererOptions } from './useEditorRenderer';

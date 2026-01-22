@@ -1,9 +1,12 @@
-import { useCallback, RefObject } from 'react';
+import React, { useCallback, RefObject } from 'react';
 import { resolveMergeFields, MergeFieldData } from '../utils';
 
 export interface UseExportOptions {
    shadowRootRef: RefObject<ShadowRoot | null>;
    mergeFieldData: MergeFieldData;
+   onSaveHistory?: () => void;
+   onSetContent?: (content: string) => void;
+   onClearSelection?: () => void;
 }
 
 export interface ExportDocument {
@@ -141,7 +144,10 @@ function fixListsForCanvas(root: HTMLElement) {
  */
 export function useExport({
    shadowRootRef,
-   mergeFieldData
+   mergeFieldData,
+   onSaveHistory,
+   onSetContent,
+   onClearSelection
 }: UseExportOptions) {
 
    // Clean content for export (remove editor-only attributes and optionally resolve merge fields)
@@ -337,10 +343,32 @@ export function useExport({
       }
    }, [shadowRootRef, mergeFieldData]);
 
+   // Import HTML file
+   const importHTML = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+         const content = event.target?.result as string;
+         if (content) {
+            onSaveHistory?.();
+            const bodyMatch = content.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+            const bodyContent = bodyMatch ? bodyMatch[1].trim() : content;
+
+            onSetContent?.(`<div class="content-flow" data-container="true">${bodyContent}</div>`);
+            onClearSelection?.();
+         }
+      };
+      reader.readAsText(file);
+      e.target.value = '';
+   }, [onSaveHistory, onSetContent, onClearSelection]);
+
    return {
       cleanContent,
       exportHTML,
-      exportPDF
+      exportPDF,
+      importHTML
    };
 }
 

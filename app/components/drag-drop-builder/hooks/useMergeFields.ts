@@ -242,6 +242,11 @@ export function useMergeFields({
    // Update ref
    handleKeyDownRef.current = handleKeyDown;
 
+   // Set selected index (for mouse hover on popup)
+   const setSelectedIndex = useCallback((index: number) => {
+      setSuggestions(prev => ({ ...prev, selectedIndex: index }));
+   }, []);
+
    return {
       suggestions,
       filteredFields,
@@ -250,7 +255,8 @@ export function useMergeFields({
       handleKeyDown,
       handleKeyDownRef,
       insertField,
-      closeSuggestions
+      closeSuggestions,
+      setSelectedIndex
    };
 }
 
