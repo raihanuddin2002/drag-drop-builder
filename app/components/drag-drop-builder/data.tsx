@@ -403,6 +403,7 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             left: 0;
             right: 0;
             height: 40px;
+            width: 150px;
             pointer-events: auto;
         }
         [data-column-container="true"]:hover {
@@ -444,6 +445,7 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             left: 0;
             right: 0;
             height: 40px;
+            width: 150px;
             pointer-events: auto;
         }
         [data-table-container="true"]:hover {
@@ -630,32 +632,3 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
         }
     `
 }
-
-//[me-col]:has(> table > tbody:only-child:empty) tbody::after, [me-col]:has(> table > tbody > tr:only-child:empty) tr::after
-
-/* 
-isplay
-In combination with 'float' and 'position', determines the type of box or boxes that are generated for an element.
-
-Widely available across major browsers (Baseline since January 2018)
-Learn more
-
-Don't show
-   display: grid;
-    content: 'Drag & Drop content here';
-    border: 2px dashed #00ab5552;
-    font-weight: 600;
-    border-radius: 6px;
-    text-align: center;
-    padding: 20px;
-    font-family: Poppins, sans-serif;
-    font-size: 11px;
-    color: #647381;
-    height: 100%;
-    width: 100%;
-    margin-inline: auto;
-    justify-items: center;
-    box-sizing: border-box;
-    background-color: #00ab551f;
-    align-items: center;
-*/

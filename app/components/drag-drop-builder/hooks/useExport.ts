@@ -225,10 +225,19 @@ export function useExport({
       const shadow = shadowRootRef.current;
       if (!shadow) throw new Error('Shadow root not ready');
 
-      // Resolve merge fields in content before parsing
-      const resolvedContent = resolveMergeFields(document.content, mergeFieldData);
+      // Get content directly from shadow DOM for most up-to-date content
+      const liveContentFlow = shadow.querySelector('.content-flow') as HTMLElement | null;
+      if (!liveContentFlow) {
+         console.error('Export failed: No content-flow element found in shadow DOM');
+         throw new Error('No content to export. Please add some content first.');
+      }
 
-      // Parse snapshot
+      const contentToExport = liveContentFlow.outerHTML;
+
+      // Resolve merge fields in content before parsing
+      const resolvedContent = resolveMergeFields(contentToExport, mergeFieldData);
+
+      // Parse snapshot (clone to avoid modifying the live DOM)
       const tempDiv = window.document.createElement('div');
       tempDiv.innerHTML = resolvedContent;
 
@@ -245,12 +254,30 @@ export function useExport({
       exportRoot.querySelectorAll('[data-empty]').forEach((el) => el.removeAttribute('data-empty'));
       exportRoot.querySelectorAll('.drop-zone').forEach((el) => el.classList.remove('drop-zone'));
 
-      // Restore original margin-top if stored
-      exportRoot.querySelectorAll<HTMLElement>('[data-page-break-before], [data-eid]').forEach((el) => {
+      // Clean all editor attributes and restore original margins
+      exportRoot.querySelectorAll<HTMLElement>('[data-eid]').forEach((el) => {
+         // Restore original margin-top if pagination modified it
          if ((el as any).dataset.pbOrigMt !== undefined) {
             el.style.marginTop = (el as any).dataset.pbOrigMt;
             delete (el as any).dataset.pbOrigMt;
          }
+         // Remove editor-specific attributes
+         el.removeAttribute('data-eid');
+         el.removeAttribute('data-selected');
+         el.removeAttribute('data-editable');
+         el.removeAttribute('draggable');
+         el.removeAttribute('contenteditable');
+      });
+
+      // Handle elements with page-break-before - restore margins and remove the attribute
+      // Note: We remove data-page-break-before because html2pdf will use CSS page-break rules,
+      // and we've already restored the original margins so content flows naturally
+      exportRoot.querySelectorAll<HTMLElement>('[data-page-break-before]').forEach((el) => {
+         if ((el as any).dataset.pbOrigMt !== undefined) {
+            el.style.marginTop = (el as any).dataset.pbOrigMt;
+            delete (el as any).dataset.pbOrigMt;
+         }
+         // Don't remove data-page-break-before - it's needed for CSS page breaks in PDF
       });
 
       // Collect editor CSS from shadow root
@@ -377,6 +404,9 @@ export function useExport({
             } as any)
             .from(host.querySelector('.pdf-page') as HTMLElement)
             .save();
+      } catch (error) {
+         console.error('PDF Export failed:', error);
+         throw error;
       } finally {
          host.remove();
       }

@@ -158,6 +158,19 @@ export default function DragAndDropBuilder({
       clone.querySelectorAll('.drop-indicator').forEach(el => el.remove());
       clone.querySelectorAll('.page-break-spacer').forEach(el => el.remove());
 
+      // Clean pagination-related data before saving
+      // Restore original margins and remove pagination attributes
+      clone.querySelectorAll<HTMLElement>('[data-page-break-before]').forEach(el => {
+         // Check if original margin was stored (as HTML attribute data-pb-orig-mt)
+         const origMt = el.getAttribute('data-pb-orig-mt');
+         if (origMt !== null) {
+            el.style.marginTop = origMt;
+         }
+         // Remove pagination attributes
+         el.removeAttribute('data-page-break-before');
+         el.removeAttribute('data-pb-orig-mt');
+      });
+
       setEditorDocument(prev => ({ ...prev, content: clone.outerHTML }));
    }, []);
 
