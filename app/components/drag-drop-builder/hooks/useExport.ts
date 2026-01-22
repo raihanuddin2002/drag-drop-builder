@@ -256,6 +256,38 @@ export function useExport({
       // Collect editor CSS from shadow root
       const { inlineCss, linkHrefs } = collectShadowStyles(shadow);
 
+      // Calculate PDF format from page dimensions
+      // Use 'a4' string for A4 (known to work well with page breaks)
+      // Use custom [width, height] array for other sizes
+      const getPdfConfig = (): { format: string | [number, number]; orientation: 'portrait' | 'landscape' } => {
+         const width = document.pageWidth;
+         const height = document.pageHeight;
+
+         // If dimensions are not in pixels (e.g., %, vh), fall back to A4
+         if (!width || !height || width.unit !== 'px' || height.unit !== 'px') {
+            return { format: 'a4', orientation: 'portrait' };
+         }
+
+         // Use string format only for A4 (794x1123) - known to work well
+         if (width.value === 794 && height.value === 1123) {
+            return { format: 'a4', orientation: 'portrait' };
+         }
+
+         // For all other sizes, convert pixels to points
+         // jsPDF uses points (pt): 1pt = 1/72 inch, standard web is 96 DPI
+         // Conversion: points = pixels * 72 / 96 = pixels * 0.75
+         const widthPt = width.value * 0.75;
+         const heightPt = height.value * 0.75;
+         const orientation = widthPt > heightPt ? 'landscape' : 'portrait';
+
+         return {
+            format: [widthPt, heightPt],
+            orientation
+         };
+      };
+
+      const pdfConfig = getPdfConfig();
+
       // Create offscreen export container
       const host = window.document.createElement('div');
       host.id = 'pdf-export-host';
@@ -336,7 +368,7 @@ export function useExport({
                   useCORS: true,
                   backgroundColor: '#ffffff',
                },
-               jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
+               jsPDF: { unit: 'pt', format: pdfConfig.format, orientation: pdfConfig.orientation },
                pagebreak: {
                   mode: ['css', 'legacy'],
                   before: '[data-page-break-before]',
