@@ -2,7 +2,7 @@ import { useCallback, RefObject } from 'react';
 
 export interface UseElementManipulationOptions {
    shadowRootRef: RefObject<ShadowRoot | null>;
-   selectedXPath: string | null;
+   selectedEid: string | null;
    onSaveHistory: () => void;
    onUpdateContent: () => void;
    onCalculatePageBreaks: () => void;
@@ -51,7 +51,7 @@ const ELEMENT_TOOLBAR_HTML = /*html*/`
  */
 export function useElementManipulation({
    shadowRootRef,
-   selectedXPath,
+   selectedEid,
    onSaveHistory,
    onUpdateContent,
    onCalculatePageBreaks,
@@ -61,9 +61,9 @@ export function useElementManipulation({
    // Get the currently selected element
    const getSelectedElement = useCallback((): HTMLElement | null => {
       const shadow = shadowRootRef.current;
-      if (!shadow || !selectedXPath) return null;
-      return shadow.querySelector(`[data-xpath="${selectedXPath}"]`) as HTMLElement | null;
-   }, [shadowRootRef, selectedXPath]);
+      if (!shadow || !selectedEid) return null;
+      return shadow.querySelector(`[data-eid="${selectedEid}"]`) as HTMLElement | null;
+   }, [shadowRootRef, selectedEid]);
 
    // Update element content
    const updateContent = useCallback((value: string, isHtml: boolean = false): void => {
@@ -175,7 +175,7 @@ export function useElementManipulation({
 
       onSaveHistory();
       const clone = el.cloneNode(true) as HTMLElement;
-      clone.removeAttribute('data-xpath');
+      clone.removeAttribute('data-eid');  // Clone will get new ID on next render
       clone.removeAttribute('data-selected');
       clone.removeAttribute('contenteditable');
       clone.querySelectorAll('.element-toolbar').forEach(t => t.remove());

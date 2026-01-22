@@ -4,7 +4,7 @@ import { parseStyles } from '../utils';
 
 export interface UseElementInfoOptions {
    shadowRootRef: RefObject<ShadowRoot | null>;
-   selectedXPath: string | null;
+   selectedEid: string | null;
 }
 
 /**
@@ -27,14 +27,14 @@ export interface UseElementInfoOptions {
  */
 export function useElementInfo({
    shadowRootRef,
-   selectedXPath
+   selectedEid
 }: UseElementInfoOptions) {
 
    const getElementInfo = useCallback((): ElementInfo | null => {
       const shadow = shadowRootRef.current;
-      if (!selectedXPath || !shadow) return null;
+      if (!selectedEid || !shadow) return null;
 
-      const el = shadow.querySelector(`[data-xpath="${selectedXPath}"]`) as HTMLElement;
+      const el = shadow.querySelector(`[data-eid="${selectedEid}"]`) as HTMLElement;
       if (!el) return null;
 
       const customCss = el.getAttribute('style') || '';
@@ -75,7 +75,7 @@ export function useElementInfo({
          tag, styles, content, innerHTML, src, href, alt, isHtmlBlock, customCss, inlineLinks,
          isTable, isTableCell, tableElement, cellRowIndex, cellColIndex
       };
-   }, [shadowRootRef, selectedXPath]);
+   }, [shadowRootRef, selectedEid]);
 
    return {
       getElementInfo

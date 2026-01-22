@@ -283,17 +283,17 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             overflow-wrap: break-word;
         }
 
-        [data-xpath]:not([data-container="true"]):not(.drop-zone):not([data-column-container="true"]):not([data-table-container="true"]) {
+        [data-eid]:not([data-container="true"]):not(.drop-zone):not([data-column-container="true"]):not([data-table-container="true"]) {
             position: relative;
             max-width: 100%;
         }
-        [data-xpath]:not([data-container="true"]):not(.drop-zone):not([data-column-container="true"]):not([data-table-container="true"]):hover {
+        [data-eid]:not([data-container="true"]):not(.drop-zone):not([data-column-container="true"]):not([data-table-container="true"]):hover {
             outline: 2px solid #22c55e !important;
             outline-offset: 2px;
         }
         /* Prevent hover outline on elements inside column/table container */
-        [data-column-container="true"] [data-xpath]:hover,
-        [data-table-container="true"] [data-xpath]:hover,
+        [data-column-container="true"] [data-eid]:hover,
+        [data-table-container="true"] [data-eid]:hover,
         [data-table-container="true"] table,
         [data-table-container="true"] tr,
         [data-table-container="true"] td,
@@ -531,14 +531,14 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
         }
 
         /* Text and heading elements - maintain minimum size when empty */
-        p[data-xpath],
-        h1[data-xpath],
-        h2[data-xpath],
-        h3[data-xpath],
-        h4[data-xpath],
-        h5[data-xpath],
-        h6[data-xpath],
-        a[data-xpath] {
+        p[data-eid],
+        h1[data-eid],
+        h2[data-eid],
+        h3[data-eid],
+        h4[data-eid],
+        h5[data-eid],
+        h6[data-eid],
+        a[data-eid] {
             min-height: 1.5em;
             min-width: 50px;
             display: block;

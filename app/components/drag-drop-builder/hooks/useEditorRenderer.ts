@@ -1,7 +1,7 @@
 import { useEffect, RefObject } from 'react';
 import { Block, EditorDocument } from '../type';
 import { EDITOR_STYLES, NON_EDITABLE_TAGS } from '../data';
-import { generateXPath, isEditableElement } from '../utils';
+import { generateElementId, isEditableElement } from '../utils';
 
 export interface UseEditorRendererOptions {
    shadowRootRef: RefObject<ShadowRoot | null>;
@@ -16,7 +16,7 @@ export interface UseEditorRendererOptions {
    onSaveHistory: () => void;
    onUpdateContent: () => void;
    onCalculatePageBreaks: () => void;
-   onSetSelectedXPath: (xpath: string | null) => void;
+   onSetSelectedEid: (eid: string | null) => void;
    onSetDraggedComponent: (component: Block | null) => void;
    onSetTableModalMode: (mode: 'create' | 'resize') => void;
    onShowTableModal: (show: boolean) => void;
@@ -58,7 +58,7 @@ export function useEditorRenderer({
    onSaveHistory,
    onUpdateContent,
    onCalculatePageBreaks,
-   onSetSelectedXPath,
+   onSetSelectedEid,
    onSetDraggedComponent,
    onSetTableModalMode,
    onShowTableModal,
@@ -135,7 +135,7 @@ export function useEditorRenderer({
 
             /* Empty state */
             .content-flow:empty::before,
-            .content-flow:not(:has([data-xpath]))::before {
+            .content-flow:not(:has([data-eid]))::before {
                content: "Drag elements here...";
                color: #9ca3af;
                font-style: italic;
@@ -210,14 +210,14 @@ export function useEditorRenderer({
                pointer-events: none !important;
             }
 
-            .pages-wrapper[data-preview-mode="true"] [data-xpath]:hover,
-            .pages-wrapper[data-preview-mode="true"] [data-xpath]:focus,
+            .pages-wrapper[data-preview-mode="true"] [data-eid]:hover,
+            .pages-wrapper[data-preview-mode="true"] [data-eid]:focus,
             .pages-wrapper[data-preview-mode="true"] [data-selected="true"] {
                outline: none !important;
                box-shadow: none !important;
             }
 
-            .pages-wrapper[data-preview-mode="true"] [data-xpath] {
+            .pages-wrapper[data-preview-mode="true"] [data-eid] {
                cursor: default !important;
                pointer-events: none !important;
             }
@@ -237,7 +237,7 @@ export function useEditorRenderer({
             }
 
             .pages-wrapper[data-preview-mode="true"] .content-flow:empty::before,
-            .pages-wrapper[data-preview-mode="true"] .content-flow:not(:has([data-xpath]))::before {
+            .pages-wrapper[data-preview-mode="true"] .content-flow:not(:has([data-eid]))::before {
                display: none;
             }
 
@@ -274,8 +274,8 @@ export function useEditorRenderer({
             el.removeAttribute('data-selected');
          });
 
-         // Add data-xpath for pagination calculation in preview mode
-         const addXPathForPreview = (el: Element): void => {
+         // Add data-eid for pagination calculation in preview mode (only if not already present)
+         const addEidForPreview = (el: Element): void => {
             if (el.nodeType !== 1) return;
             if (
                !NON_EDITABLE_TAGS.includes(el.tagName?.toUpperCase())
@@ -286,12 +286,14 @@ export function useEditorRenderer({
                && !el.classList.contains('page-break-spacer')
                && !el.closest('.page-break-spacer')
             ) {
-               const xpath = generateXPath(el as HTMLElement, contentFlow as HTMLElement);
-               el.setAttribute('data-xpath', xpath);
+               // Only assign ID if element doesn't already have one
+               if (!el.getAttribute('data-eid')) {
+                  el.setAttribute('data-eid', generateElementId());
+               }
             }
-            Array.from(el.children).forEach(addXPathForPreview);
+            Array.from(el.children).forEach(addEidForPreview);
          };
-         Array.from(contentFlow.children).forEach(addXPathForPreview);
+         Array.from(contentFlow.children).forEach(addEidForPreview);
 
          // Calculate page breaks for preview mode
          onCalculatePageBreaks();
@@ -300,9 +302,9 @@ export function useEditorRenderer({
          pagesWrapper.removeAttribute('data-preview-mode');
       }
 
-      // Setup elements for editing
+      // Setup elements for editing - keep data-eid, it's persistent
       contentFlow.querySelectorAll('*').forEach(el => {
-         el.removeAttribute('data-xpath');
+         // Don't remove data-eid - it's the persistent element identifier
          el.removeAttribute('data-selected');
          el.removeAttribute('contenteditable');
          el.removeAttribute('draggable');
@@ -312,8 +314,8 @@ export function useEditorRenderer({
          }
       });
 
-      // Add XPath and toolbars
-      const addXPathData = (el: Element): void => {
+      // Add element IDs and toolbars
+      const addElementIds = (el: Element): void => {
          if (el.nodeType !== 1) return;
          if (
             !NON_EDITABLE_TAGS.includes(el.tagName?.toUpperCase())
@@ -324,8 +326,10 @@ export function useEditorRenderer({
             && !el.classList.contains('page-break-spacer')
             && !el.closest('.page-break-spacer')
          ) {
-            const xpath = generateXPath(el as HTMLElement, contentFlow as HTMLElement);
-            el.setAttribute('data-xpath', xpath);
+            // Only assign ID if element doesn't already have one (IDs are persistent)
+            if (!el.getAttribute('data-eid')) {
+               el.setAttribute('data-eid', generateElementId());
+            }
 
             const isColumnContainer = el.hasAttribute('data-column-container');
             const isTableContainer = el.hasAttribute('data-table-container');
@@ -374,12 +378,12 @@ export function useEditorRenderer({
          }
          Array.from(el.children).forEach(child => {
             if (!child.classList.contains('element-toolbar')) {
-               addXPathData(child);
+               addElementIds(child);
             }
          });
       };
 
-      addXPathData(contentFlow);
+      addElementIds(contentFlow);
 
       // Calculate page breaks after render
       onCalculatePageBreaks();
@@ -395,25 +399,25 @@ export function useEditorRenderer({
             mouseEvent.preventDefault();
             mouseEvent.stopPropagation();
             const action = toolbarBtn.getAttribute('data-action');
-            const parentElement = toolbarBtn.closest('[data-xpath]');
-            const xpath = parentElement?.getAttribute('data-xpath');
+            const parentElement = toolbarBtn.closest('[data-eid]');
+            const eid = parentElement?.getAttribute('data-eid');
 
-            if (xpath && action) {
+            if (eid && action) {
                if (action === 'delete') {
-                  const el = shadow.querySelector(`[data-xpath="${xpath}"]`) as HTMLElement;
+                  const el = shadow.querySelector(`[data-eid="${eid}"]`) as HTMLElement;
                   if (el && !el.hasAttribute('data-container')) {
                      onSaveHistory();
                      el.remove();
                      onUpdateContent();
-                     onSetSelectedXPath(null);
+                     onSetSelectedEid(null);
                      onCalculatePageBreaks();
                   }
                } else if (action === 'duplicate') {
-                  const el = shadow.querySelector(`[data-xpath="${xpath}"]`) as HTMLElement;
+                  const el = shadow.querySelector(`[data-eid="${eid}"]`) as HTMLElement;
                   if (el && !el.hasAttribute('data-container')) {
                      onSaveHistory();
                      const clone = el.cloneNode(true) as HTMLElement;
-                     clone.removeAttribute('data-xpath');
+                     clone.removeAttribute('data-eid');  // Clone will get new ID on next render
                      clone.removeAttribute('data-selected');
                      el.parentNode?.insertBefore(clone, el.nextSibling);
                      onUpdateContent();
@@ -429,11 +433,11 @@ export function useEditorRenderer({
          // Handle drop-zone inside column container
          const parentColumnContainer = target.closest('[data-column-container="true"]') as HTMLElement;
          if (target.classList.contains('drop-zone') && parentColumnContainer) {
-            const xpath = parentColumnContainer.getAttribute('data-xpath');
-            if (xpath) {
+            const eid = parentColumnContainer.getAttribute('data-eid');
+            if (eid) {
                mouseEvent.preventDefault();
                mouseEvent.stopPropagation();
-               onSetSelectedXPath(xpath);
+               onSetSelectedEid(eid);
             }
             return;
          }
@@ -446,27 +450,27 @@ export function useEditorRenderer({
             target.classList.contains('pages-container') ||
             target.classList.contains('page-break-spacer') ||
             target.closest('.page-break-spacer')) {
-            onSetSelectedXPath(null);
+            onSetSelectedEid(null);
             return;
          }
 
          if (target.hasAttribute('data-column-container')) {
-            const xpath = target.getAttribute('data-xpath');
-            if (xpath) {
+            const eid = target.getAttribute('data-eid');
+            if (eid) {
                mouseEvent.preventDefault();
                mouseEvent.stopPropagation();
-               onSetSelectedXPath(xpath);
+               onSetSelectedEid(eid);
             }
             return;
          }
 
          // Handle table container clicks - select the table container
          if (target.hasAttribute('data-table-container')) {
-            const xpath = target.getAttribute('data-xpath');
-            if (xpath) {
+            const eid = target.getAttribute('data-eid');
+            if (eid) {
                mouseEvent.preventDefault();
                mouseEvent.stopPropagation();
-               onSetSelectedXPath(xpath);
+               onSetSelectedEid(eid);
             }
             return;
          }
@@ -474,22 +478,22 @@ export function useEditorRenderer({
          // Handle clicks inside table (cells) - select parent table container
          const parentTableContainer = target.closest('[data-table-container="true"]') as HTMLElement;
          if (parentTableContainer && (target.tagName === 'TD' || target.tagName === 'TH' || target.tagName === 'TR' || target.tagName === 'TABLE')) {
-            const xpath = parentTableContainer.getAttribute('data-xpath');
-            if (xpath) {
-               onSetSelectedXPath(xpath);
+            const eid = parentTableContainer.getAttribute('data-eid');
+            if (eid) {
+               onSetSelectedEid(eid);
             }
             // Don't return - allow contenteditable to work
          }
 
-         const elementWithXPath = target.closest('[data-xpath]') as HTMLElement;
-         if (elementWithXPath && !elementWithXPath.classList.contains('element-toolbar')) {
-            const xpath = elementWithXPath.getAttribute('data-xpath');
-            if (xpath) {
-               if (!elementWithXPath.hasAttribute('contenteditable')) {
+         const elementWithEid = target.closest('[data-eid]') as HTMLElement;
+         if (elementWithEid && !elementWithEid.classList.contains('element-toolbar')) {
+            const eid = elementWithEid.getAttribute('data-eid');
+            if (eid) {
+               if (!elementWithEid.hasAttribute('contenteditable')) {
                   mouseEvent.preventDefault();
                }
                mouseEvent.stopPropagation();
-               onSetSelectedXPath(xpath);
+               onSetSelectedEid(eid);
             }
          }
       };
@@ -497,7 +501,7 @@ export function useEditorRenderer({
       // Blur handler - save and recalculate
       const handleBlur = (e: Event) => {
          const target = e.target as HTMLElement;
-         if (target.hasAttribute('contenteditable') && target.hasAttribute('data-xpath')) {
+         if (target.hasAttribute('contenteditable') && target.hasAttribute('data-eid')) {
             onSaveHistory();
             onUpdateContent();
             onCalculatePageBreaks();
@@ -513,7 +517,7 @@ export function useEditorRenderer({
          // Toggle data-empty attribute for placeholder styling
          const target = e.target as HTMLElement;
 
-         if (target.hasAttribute('contenteditable') && target.hasAttribute('data-xpath')) {
+         if (target.hasAttribute('contenteditable') && target.hasAttribute('data-eid')) {
             const clone = target.cloneNode(true) as HTMLElement;
             clone.querySelectorAll('.element-toolbar').forEach(t => t.remove());
 
@@ -549,7 +553,7 @@ export function useEditorRenderer({
          if (keyEvent.key === 'Enter' && !keyEvent.shiftKey) {
             const isContentEditable = target.hasAttribute('contenteditable') && target.getAttribute('contenteditable') === 'true';
 
-            if (isContentEditable && target.hasAttribute('data-xpath')) {
+            if (isContentEditable && target.hasAttribute('data-eid')) {
                keyEvent.preventDefault();
 
                const selection = (shadow as unknown as { getSelection?: () => Selection | null }).getSelection?.() || window.getSelection();
@@ -589,7 +593,7 @@ export function useEditorRenderer({
       const allDragBtns = shadow.querySelectorAll('.element-toolbar-btn[data-action="drag"]');
 
       allDragBtns.forEach(dragBtn => {
-         const el = dragBtn.closest('[data-xpath]') as HTMLElement;
+         const el = dragBtn.closest('[data-eid]') as HTMLElement;
          if (!el) return;
 
          (dragBtn as HTMLElement).draggable = true;
@@ -627,7 +631,7 @@ export function useEditorRenderer({
 
          const calculateInsertionPoint = (container: HTMLElement, mouseY: number) => {
             const children = Array.from(
-               container.querySelectorAll(':scope > [data-xpath]:not(.drop-zone):not(.drop-indicator)')
+               container.querySelectorAll(':scope > [data-eid]:not(.drop-zone):not(.drop-indicator)')
             ) as HTMLElement[];
 
             const validChildren = dragged
@@ -741,19 +745,15 @@ export function useEditorRenderer({
                onCalculatePageBreaks();
                return;
             } else if (dragged) {
-               // reordering elements
+               // reordering elements - ID stays the same, selection stays correct
                dropIndicator.parentNode?.insertBefore(dragged, dropIndicator);
                dropIndicator.remove();
                dragged.classList.remove('dragging');
                draggedElementRef.current = null;
 
-               // Recalculate XPath for the moved element and siblings to update selection
-               const container = shadow.querySelector('.content-flow') as HTMLElement;
-
-               if (container) {
-                  const newXPath = generateXPath(dragged, container);
-                  onSetSelectedXPath(newXPath);
-               }
+               // With stable IDs, we just use the existing element ID - no recalculation needed!
+               const eid = dragged.getAttribute('data-eid');
+               onSetSelectedEid(eid);
 
                onUpdateContent();
                onCalculatePageBreaks();
@@ -799,12 +799,9 @@ export function useEditorRenderer({
                dragged.classList.remove('dragging');
                draggedElementRef.current = null;
 
-               const container = shadow.querySelector('.content-flow') as HTMLElement;
-
-               if (container) {
-                  const newXPath = generateXPath(dragged, container);
-                  onSetSelectedXPath(newXPath);
-               }
+               // With stable IDs, we just use the existing element ID - no recalculation needed!
+               const eid = dragged.getAttribute('data-eid');
+               onSetSelectedEid(eid);
 
                onUpdateContent();
                onCalculatePageBreaks();
@@ -855,7 +852,7 @@ export function useEditorRenderer({
       onSaveHistory,
       onUpdateContent,
       onCalculatePageBreaks,
-      onSetSelectedXPath,
+      onSetSelectedEid,
       onSetDraggedComponent,
       onSetTableModalMode,
       onShowTableModal,

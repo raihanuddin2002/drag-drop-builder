@@ -2,7 +2,7 @@ import { useCallback, RefObject } from 'react';
 
 export interface UseRichTextOptions {
    shadowRootRef: RefObject<ShadowRoot | null>;
-   selectedXPath: string | null;
+   selectedEid: string | null;
    onSaveHistory: () => void;
    onUpdateContent: () => void;
    onCalculatePageBreaks: () => void;
@@ -37,7 +37,7 @@ export interface UseRichTextOptions {
  */
 export function useRichText({
    shadowRootRef,
-   selectedXPath,
+   selectedEid,
    onSaveHistory,
    onUpdateContent,
    onCalculatePageBreaks
@@ -72,8 +72,8 @@ export function useRichText({
          }
       }
 
-      if (!anchor && selectedXPath) {
-         const selectedEl = shadow.querySelector(`[data-xpath="${selectedXPath}"]`);
+      if (!anchor && selectedEid) {
+         const selectedEl = shadow.querySelector(`[data-eid="${selectedEid}"]`);
          if (selectedEl) {
             anchor = selectedEl.tagName === 'A' ? selectedEl as HTMLAnchorElement : selectedEl.querySelector('a');
          }
@@ -88,7 +88,7 @@ export function useRichText({
          anchor.parentNode?.replaceChild(fragment, anchor);
          onUpdateContent();
       }
-   }, [shadowRootRef, selectedXPath, getSelection, onSaveHistory, onUpdateContent]);
+   }, [shadowRootRef, selectedEid, getSelection, onSaveHistory, onUpdateContent]);
 
    // Handle font size
    const handleFontSize = useCallback((value: string) => {

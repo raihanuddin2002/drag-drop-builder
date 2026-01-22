@@ -73,8 +73,8 @@ export default function DragAndDropBuilder({
    // Calculated page count based on content height
    const [pageCount, setPageCount] = useState(1);
 
-   // Selection state
-   const [selectedXPath, setSelectedXPath] = useState<string | null>(null);
+   // Selection state - using stable element IDs instead of position-based xpath
+   const [selectedEid, setSelectedEid] = useState<string | null>(null);
    // const [breakpoint, setBreakpoint] = useState<Breakpoint>('desktop');
    const [draggedComponent, setDraggedComponent] = useState<Block | null>(null);
    const [isPreviewMode, setIsPreviewMode] = useState<boolean>(false);
@@ -145,9 +145,9 @@ export default function DragAndDropBuilder({
 
       const clone = contentFlow.cloneNode(true) as HTMLElement;
 
-      // Clean editor attributes
-      clone.querySelectorAll('[data-xpath]').forEach(el => {
-         el.removeAttribute('data-xpath');
+      // Clean editor attributes but keep data-eid for persistence
+      clone.querySelectorAll('[data-eid]').forEach(el => {
+         // Keep data-eid - it's persistent and identifies elements
          el.removeAttribute('data-selected');
          el.removeAttribute('draggable');
       });
@@ -216,11 +216,11 @@ export default function DragAndDropBuilder({
       duplicateElement
    } = useElementManipulation({
       shadowRootRef,
-      selectedXPath,
+      selectedEid,
       onSaveHistory: saveHistory,
       onUpdateContent: updateContentFromShadow,
       onCalculatePageBreaks: calculatePageBreaksRAF,
-      onClearSelection: () => setSelectedXPath(null)
+      onClearSelection: () => setSelectedEid(null)
    });
 
    // Table manipulation hook
@@ -233,18 +233,18 @@ export default function DragAndDropBuilder({
       resizeTable
    } = useTableManipulation({
       shadowRootRef,
-      selectedXPath,
+      selectedEid,
       onSaveHistory: saveHistory,
       onUpdateContent: updateContentFromShadow,
       onCalculatePageBreaks: calculatePageBreaksRAF,
-      onClearSelection: () => setSelectedXPath(null),
+      onClearSelection: () => setSelectedEid(null),
       onCloseTableModal: closeTableModal
    });
 
    // Rich text formatting hook
    const { handleFormat } = useRichText({
       shadowRootRef,
-      selectedXPath,
+      selectedEid,
       onSaveHistory: saveHistory,
       onUpdateContent: updateContentFromShadow,
       onCalculatePageBreaks: calculatePageBreaksRAF
@@ -256,7 +256,7 @@ export default function DragAndDropBuilder({
       mergeFieldData,
       onSaveHistory: saveHistory,
       onSetContent: (content) => setEditorDocument(prev => ({ ...prev, content })),
-      onClearSelection: () => setSelectedXPath(null)
+      onClearSelection: () => setSelectedEid(null)
    });
 
    // Merge fields autocomplete hook
@@ -277,7 +277,7 @@ export default function DragAndDropBuilder({
    // Element info hook
    const { getElementInfo } = useElementInfo({
       shadowRootRef,
-      selectedXPath
+      selectedEid
    });
 
    // Editor renderer hook - main render effect (SHADOW DOM RENDERING)
@@ -294,7 +294,7 @@ export default function DragAndDropBuilder({
       onSaveHistory: saveHistory,
       onUpdateContent: updateContentFromShadow,
       onCalculatePageBreaks: calculatePageBreaksRAF,
-      onSetSelectedXPath: setSelectedXPath,
+      onSetSelectedEid: setSelectedEid,
       onSetDraggedComponent: setDraggedComponent,
       onSetTableModalMode: setTableModalMode,
       onShowTableModal: setShowTableModal,
@@ -308,13 +308,13 @@ export default function DragAndDropBuilder({
 
       shadow.querySelectorAll('[data-selected]').forEach(el => el.removeAttribute('data-selected'));
 
-      if (selectedXPath) {
-         const el = shadow.querySelector(`[data-xpath="${selectedXPath}"]`);
+      if (selectedEid) {
+         const el = shadow.querySelector(`[data-eid="${selectedEid}"]`);
          if (el) {
             el.setAttribute('data-selected', 'true');
          }
       }
-   }, [selectedXPath, editorDocument]);
+   }, [selectedEid, editorDocument]);
 
    const handleSidebarDragStart = (component: Block): void => {
       setDraggedComponent(component);
@@ -377,7 +377,7 @@ export default function DragAndDropBuilder({
                <div className="flex items-center gap-2">
                   <button
                      onClick={() => {
-                        setSelectedXPath(null);
+                        setSelectedEid(null);
                         setEditorKey(k => k + 1);
                         setIsPreviewMode(!isPreviewMode);
                      }}
@@ -434,11 +434,11 @@ export default function DragAndDropBuilder({
 
          {/* Right Sidebar */}
          {!isPreviewMode && (
-            <div className={`bg-white border-l transition-all duration-300 ${selectedXPath ? 'w-72' : 'w-0'} overflow-hidden`}>
-               {selectedXPath && elementInfo && (
+            <div className={`bg-white border-l transition-all duration-300 ${selectedEid ? 'w-72' : 'w-0'} overflow-hidden`}>
+               {selectedEid && elementInfo && (
                   <SettingsPanel
                      elementInfo={elementInfo}
-                     elementKey={selectedXPath}
+                     elementKey={selectedEid}
                      onUpdateContent={updateContent}
                      onUpdateStyle={updateStyle}
                      onUpdateAttribute={updateAttribute}
@@ -448,7 +448,7 @@ export default function DragAndDropBuilder({
                      onCommitChanges={() => { saveHistory(); updateContentFromShadow(); }}
                      onDelete={deleteElement}
                      onDuplicate={duplicateElement}
-                     onClose={() => { setSelectedXPath(null) }}
+                     onClose={() => { setSelectedEid(null) }}
                   />
                )}
             </div>

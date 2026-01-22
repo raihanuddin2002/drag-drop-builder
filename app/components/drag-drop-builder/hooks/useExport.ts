@@ -157,8 +157,8 @@ export function useExport({
       const container = doc.body.firstElementChild;
       if (!container) return content;
 
-      container.querySelectorAll('[data-xpath]').forEach(el => {
-         el.removeAttribute('data-xpath');
+      container.querySelectorAll('[data-eid]').forEach(el => {
+         el.removeAttribute('data-eid');
          el.removeAttribute('data-selected');
          el.removeAttribute('draggable');
          el.removeAttribute('contenteditable');
@@ -246,7 +246,7 @@ export function useExport({
       exportRoot.querySelectorAll('.drop-zone').forEach((el) => el.classList.remove('drop-zone'));
 
       // Restore original margin-top if stored
-      exportRoot.querySelectorAll<HTMLElement>('[data-page-break-before], [data-xpath]').forEach((el) => {
+      exportRoot.querySelectorAll<HTMLElement>('[data-page-break-before], [data-eid]').forEach((el) => {
          if ((el as any).dataset.pbOrigMt !== undefined) {
             el.style.marginTop = (el as any).dataset.pbOrigMt;
             delete (el as any).dataset.pbOrigMt;

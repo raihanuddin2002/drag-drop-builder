@@ -70,7 +70,7 @@ export function usePagination({
             return !htmlEl.classList.contains('element-toolbar')
                && !htmlEl.classList.contains('page-break-spacer');
          }
-         return htmlEl.hasAttribute('data-xpath');
+         return htmlEl.hasAttribute('data-eid');
       }) as HTMLElement[];
 
       // Cleanup previous pagination
