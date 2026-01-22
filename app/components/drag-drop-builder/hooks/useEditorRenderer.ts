@@ -28,9 +28,11 @@ export interface UseEditorRendererOptions {
  * - Mounts shadow shell once (no full rebuild).
  * - Delegated event handlers (no per-node listeners).
  * - Stable data-eid identifiers.
- * - Avoids overwriting DOM while typing.
+ * - Avoids overwriting DOM while typing (unless undo/redo changes content).
  * - Throttles page-break calculation using rAF.
  * - Processes only inserted/duplicated subtrees where possible.
+ * - CSS updates only when dimensions change.
+ * - Single-pass preview cleanup.
  *
  * IMPORTANT: For true stable IDs across undo/redo/load, your onUpdateContent()
  * should serialize HTML WITHOUT removing data-eid attributes.
@@ -60,8 +62,13 @@ export function useEditorRenderer({
 
    // typing / external apply guards
    const isUserTypingRef = useRef(false);
-   const lastAppliedContentRef = useRef<string>(''); // raw editorDocument.content last applied
+   const lastAppliedContentRef = useRef<string>('');
    const lastSelectedEidRef = useRef<string | null>(null);
+
+   // Track last applied dimensions to avoid redundant CSS rebuilds
+   const lastAppliedDimensionsRef = useRef<string>('');
+   // Track last preview mode to detect toggle
+   const lastPreviewModeRef = useRef<boolean>(false);
 
    // rAF throttle for page breaks
    const rafCalcRef = useRef<number | null>(null);
@@ -72,6 +79,16 @@ export function useEditorRenderer({
          callbacksRef.current.onCalculatePageBreaks();
       });
    }, []);
+
+   // rAF throttle for merge field trigger
+   const rafMergeRef = useRef<number | null>(null);
+   const scheduleMergeFieldCheck = useCallback(() => {
+      if (rafMergeRef.current) return;
+      rafMergeRef.current = requestAnimationFrame(() => {
+         rafMergeRef.current = null;
+         checkMergeFieldTriggerRef.current();
+      });
+   }, [checkMergeFieldTriggerRef]);
 
    // Refs for callbacks to avoid re-attaching listeners
    const callbacksRef = useRef({
@@ -129,27 +146,29 @@ export function useEditorRenderer({
       return false;
    }, []);
 
-   // Helper: ensure empty placeholder <br> and data-empty
+   // Helper: ensure empty placeholder <br> and data-empty (no cloning - direct check)
    const updateEmptyState = useCallback((el: HTMLElement) => {
-      // remove toolbar text for empty check
-      const clone = el.cloneNode(true) as HTMLElement;
-      clone.querySelectorAll('.element-toolbar').forEach(t => t.remove());
+      let hasContent = false;
 
-      const textContent = clone.textContent?.trim() || '';
-      const html = clone.innerHTML.trim();
-      const isEmpty = textContent === '' || html === '' || html === '<br>';
+      for (let i = 0; i < el.childNodes.length; i++) {
+         const node = el.childNodes[i];
+         if (node.nodeType === Node.ELEMENT_NODE) {
+            const element = node as Element;
+            if (element.classList.contains('element-toolbar')) continue;
+            if (element.tagName === 'BR') continue;
+            hasContent = true;
+            break;
+         } else if (node.nodeType === Node.TEXT_NODE) {
+            if (node.textContent?.trim()) {
+               hasContent = true;
+               break;
+            }
+         }
+      }
 
-      if (isEmpty) {
+      if (!hasContent) {
          el.setAttribute('data-empty', 'true');
-
-         const hasNonToolbarContent = Array.from(el.childNodes).some(node =>
-            (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) ||
-            (node.nodeType === Node.ELEMENT_NODE &&
-               !(node as Element).classList.contains('element-toolbar') &&
-               (node as Element).tagName !== 'BR')
-         );
-
-         if (!hasNonToolbarContent && !el.querySelector(':scope > br')) {
+         if (!el.querySelector(':scope > br')) {
             el.appendChild(document.createElement('br'));
          }
       } else {
@@ -270,6 +289,20 @@ export function useEditorRenderer({
       [processSubtree]
    );
 
+   // Single-pass preview cleanup: removes toolbars, contenteditable, and data-selected
+   const applyPreviewCleanup = useCallback((shadow: ShadowRoot) => {
+      const els = shadow.querySelectorAll('.element-toolbar, [contenteditable], [data-selected]');
+      for (let i = 0; i < els.length; i++) {
+         const el = els[i] as HTMLElement;
+         if (el.classList.contains('element-toolbar')) {
+            el.remove();
+         } else {
+            if (el.hasAttribute('contenteditable')) el.removeAttribute('contenteditable');
+            if (el.hasAttribute('data-selected')) el.removeAttribute('data-selected');
+         }
+      }
+   }, []);
+
    // Effect A: Mount shell once + attach event listeners once
    useEffect(() => {
       if (!shadowReady) return;
@@ -320,7 +353,7 @@ export function useEditorRenderer({
 
             if (eid && action) {
                if (action === 'delete') {
-                  const el = shadow.querySelector(`[data-eid="${eid}"]`) as HTMLElement | null;
+                  const el = shadow.querySelector(`[data-eid="${CSS.escape(eid)}"]`) as HTMLElement | null;
                   if (el && !el.hasAttribute('data-container')) {
                      onSaveHistory();
                      el.remove();
@@ -329,18 +362,19 @@ export function useEditorRenderer({
                      schedulePageBreaks();
                   }
                } else if (action === 'duplicate') {
-                  const el = shadow.querySelector(`[data-eid="${eid}"]`) as HTMLElement | null;
+                  const el = shadow.querySelector(`[data-eid="${CSS.escape(eid)}"]`) as HTMLElement | null;
                   if (el && !el.hasAttribute('data-container')) {
                      onSaveHistory();
 
                      const clone = el.cloneNode(true) as HTMLElement;
 
-                     // Remove toolbars from clone and assign new ID(s)
+                     // Remove toolbars and strip ALL data-eids so processSubtree assigns fresh ones
                      clone.querySelectorAll('.element-toolbar').forEach(t => t.remove());
                      clone.removeAttribute('data-selected');
-                     clone.setAttribute('data-eid', generateElementId());
+                     clone.removeAttribute('data-eid');
+                     clone.querySelectorAll('[data-eid]').forEach(child => child.removeAttribute('data-eid'));
 
-                     // Insert clone and process ONLY its subtree (fast)
+                     // Insert clone and process its subtree (assigns new eids + toolbars)
                      el.parentNode?.insertBefore(clone, el.nextSibling);
                      processSubtree(clone, false);
 
@@ -427,7 +461,13 @@ export function useEditorRenderer({
       const handleBlur = (e: Event) => {
          if (stateRef.current.isPreviewMode) return;
 
-         const target = e.target as HTMLElement;
+         const focusEvent = e as FocusEvent;
+         const target = focusEvent.target as HTMLElement;
+
+         // Skip blur if focus is moving to a toolbar button (prevents double history)
+         const relatedTarget = focusEvent.relatedTarget as HTMLElement | null;
+         if (relatedTarget?.closest('.element-toolbar')) return;
+
          if (target.hasAttribute('contenteditable') && target.hasAttribute('data-eid')) {
             isUserTypingRef.current = false;
             callbacksRef.current.onSaveHistory();
@@ -444,8 +484,8 @@ export function useEditorRenderer({
          // Throttled page breaks
          schedulePageBreaks();
 
-         // merge field trigger check
-         checkMergeFieldTriggerRef.current();
+         // Throttled merge field trigger check
+         scheduleMergeFieldCheck();
 
          // empty placeholder state
          const target = e.target as HTMLElement;
@@ -478,6 +518,12 @@ export function useEditorRenderer({
 
                   const br = document.createElement('br');
                   range.insertNode(br);
+
+                  // If br is at the end of the element, add a trailing br so cursor advances visually
+                  if (!br.nextSibling || (br.nextSibling.nodeType === Node.TEXT_NODE && !br.nextSibling.textContent)) {
+                     const trailingBr = document.createElement('br');
+                     br.parentNode?.insertBefore(trailingBr, br.nextSibling);
+                  }
 
                   range.setStartAfter(br);
                   range.setEndAfter(br);
@@ -522,10 +568,11 @@ export function useEditorRenderer({
 
          if (draggedElementRef.current) {
             draggedElementRef.current.classList.remove('dragging');
-            shadow.querySelectorAll('.drop-indicator').forEach(ind => ind.remove());
-            shadow.querySelectorAll('.drag-over').forEach(zone => zone.classList.remove('drag-over'));
             draggedElementRef.current = null;
          }
+         // Always clean up indicators on drag end
+         shadow.querySelectorAll('.drop-indicator').forEach(ind => ind.remove());
+         shadow.querySelectorAll('.drag-over').forEach(zone => zone.classList.remove('drag-over'));
       };
 
       const handleDragOver = (e: Event) => {
@@ -629,8 +676,9 @@ export function useEditorRenderer({
             onShowTableModal
          } = callbacksRef.current;
 
-         const dropIndicator = shadow.querySelector('.drop-indicator') as HTMLElement | null;
+         // Always clean up drag artifacts first
          shadow.querySelectorAll('.drag-over').forEach(zone => zone.classList.remove('drag-over'));
+         const dropIndicator = shadow.querySelector('.drop-indicator') as HTMLElement | null;
 
          const insertFragmentBefore = (anchor: Element, html: string) => {
             const frag = buildProcessedFragment(html, false);
@@ -682,6 +730,7 @@ export function useEditorRenderer({
             }
          }
 
+         // Clean up any stale indicators
          shadow.querySelectorAll('.drop-indicator').forEach(ind => ind.remove());
 
          const dropZone = target.closest('.drop-zone, [data-container="true"]') as HTMLElement | null;
@@ -769,6 +818,10 @@ export function useEditorRenderer({
             cancelAnimationFrame(rafCalcRef.current);
             rafCalcRef.current = null;
          }
+         if (rafMergeRef.current) {
+            cancelAnimationFrame(rafMergeRef.current);
+            rafMergeRef.current = null;
+         }
       };
 
       return () => {
@@ -780,13 +833,14 @@ export function useEditorRenderer({
       shadowReady,
       shadowRootRef,
       draggedElementRef,
-      checkMergeFieldTriggerRef,
       handleMergeFieldKeyDownRef,
       processSubtree,
       buildProcessedFragment,
       schedulePageBreaks,
+      scheduleMergeFieldCheck,
       setSelectedEid,
-      updateEmptyState
+      updateEmptyState,
+      applyPreviewCleanup
    ]);
 
    // Effect B: Update styles/header/preview and apply external content changes
@@ -796,26 +850,30 @@ export function useEditorRenderer({
       const shadow = shadowRootRef.current;
       if (!shadow) return;
 
-      // Update dynamic styles
+      // Build a dimension key to detect changes
       const pagePadding = 40;
-      const styleEl = shadow.getElementById('editor-dynamic-styles');
-      if (styleEl) {
-         const EditorStylesStr = EDITOR_STYLES({
-            currentPageHeight: {
-               value: editorDocument?.pageHeight?.value,
-               unit: editorDocument?.pageHeight?.unit
-            }
-         });
+      const dimensionKey = `${editorDocument.pageWidth?.value}${editorDocument.pageWidth?.unit}|${editorDocument.pageHeight?.value}${editorDocument.pageHeight?.unit}`;
 
-         const containerFlowMinHeight = `calc(${editorDocument.pageHeight?.value}${editorDocument.pageHeight?.unit} - ${pagePadding * 2
-            }px) !important`;
+      // Only rebuild CSS when dimensions actually change
+      if (dimensionKey !== lastAppliedDimensionsRef.current) {
+         const styleEl = shadow.getElementById('editor-dynamic-styles');
+         if (styleEl) {
+            const EditorStylesStr = EDITOR_STYLES({
+               currentPageHeight: {
+                  value: editorDocument?.pageHeight?.value,
+                  unit: editorDocument?.pageHeight?.unit
+               }
+            });
 
-         const pagesContainerHeight =
-            editorDocument.pageHeight?.unit === 'vh'
-               ? `min-height: ${editorDocument.pageHeight?.value}${editorDocument.pageHeight?.unit} !important`
-               : `height: ${editorDocument.pageHeight?.value}${editorDocument.pageHeight?.unit} !important`;
+            const containerFlowMinHeight = `calc(${editorDocument.pageHeight?.value}${editorDocument.pageHeight?.unit} - ${pagePadding * 2
+               }px) !important`;
 
-         styleEl.textContent = /* css */ `
+            const pagesContainerHeight =
+               editorDocument.pageHeight?.unit === 'vh'
+                  ? `min-height: ${editorDocument.pageHeight?.value}${editorDocument.pageHeight?.unit} !important`
+                  : `height: ${editorDocument.pageHeight?.value}${editorDocument.pageHeight?.unit} !important`;
+
+            styleEl.textContent = /* css */ `
         ${EditorStylesStr}
 
         .pages-wrapper { padding: 40px 20px 60px; min-height: 100%; }
@@ -970,6 +1028,8 @@ export function useEditorRenderer({
           display: none !important;
         }
       `;
+         }
+         lastAppliedDimensionsRef.current = dimensionKey;
       }
 
       // Update header text
@@ -988,22 +1048,33 @@ export function useEditorRenderer({
       if (isPreviewMode) pagesWrapper.setAttribute('data-preview-mode', 'true');
       else pagesWrapper.removeAttribute('data-preview-mode');
 
-      // 🔒 DO NOT overwrite DOM while user is typing (prevents flicker/caret jumps)
-      if (isUserTypingRef.current) {
-         return;
-      }
+      // Detect if this is a preview mode toggle (no content change)
+      const previewModeChanged = isPreviewMode !== lastPreviewModeRef.current;
+      lastPreviewModeRef.current = isPreviewMode;
 
       // Apply external content changes only when content string actually changes
       const incoming = editorDocument.content ?? '';
-      if (incoming === lastAppliedContentRef.current) {
-         // still ensure correct processing for preview toggles:
-         if (isPreviewMode) {
-            shadow.querySelectorAll('.element-toolbar').forEach(el => el.remove());
-            shadow.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
-            shadow.querySelectorAll('[data-selected]').forEach(el => el.removeAttribute('data-selected'));
-         } else {
-            // ensure toolbars exist if needed (light pass)
-            processSubtree(contentFlow, false);
+      const contentChanged = incoming !== lastAppliedContentRef.current;
+
+      // If content changed, force reset typing guard (undo/redo must apply even while focused)
+      if (contentChanged) {
+         isUserTypingRef.current = false;
+      }
+
+      // Skip DOM overwrite only if user is typing AND content hasn't changed
+      if (isUserTypingRef.current && !contentChanged) {
+         return;
+      }
+
+      if (!contentChanged) {
+         // Handle preview mode toggle without full tree rebuild
+         if (previewModeChanged) {
+            if (isPreviewMode) {
+               applyPreviewCleanup(shadow);
+            } else {
+               // Restore toolbars/contenteditable - targeted pass only for elements missing them
+               processSubtree(contentFlow, false);
+            }
          }
          schedulePageBreaks();
          return;
@@ -1027,15 +1098,13 @@ export function useEditorRenderer({
 
       // Restore selection highlight if you use it in DOM
       if (!isPreviewMode && selectedEid) {
-         const selectedEl = contentFlow.querySelector(`[data-eid="${selectedEid}"]`) as HTMLElement | null;
+         const selectedEl = contentFlow.querySelector(`[data-eid="${CSS.escape(selectedEid)}"]`) as HTMLElement | null;
          if (selectedEl) selectedEl.setAttribute('data-selected', 'true');
       }
 
-      // Preview specifics: remove toolbars/contenteditable/selection
+      // Preview specifics: single-pass cleanup
       if (isPreviewMode) {
-         shadow.querySelectorAll('.element-toolbar').forEach(el => el.remove());
-         shadow.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
-         shadow.querySelectorAll('[data-selected]').forEach(el => el.removeAttribute('data-selected'));
+         applyPreviewCleanup(shadow);
       }
 
       lastAppliedContentRef.current = incoming;
@@ -1051,7 +1120,8 @@ export function useEditorRenderer({
       editorDocument.pageHeight?.unit,
       isPreviewMode,
       processSubtree,
-      schedulePageBreaks
+      schedulePageBreaks,
+      applyPreviewCleanup
    ]);
 }
 
