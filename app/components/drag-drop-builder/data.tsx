@@ -257,68 +257,68 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
    const dropZoneOfPageHeight = data?.currentPageHeight?.value ? `${data?.currentPageHeight?.value}${data?.currentPageHeight?.unit}` : '100%';
 
    return  /* css */`
-        /* Global box-sizing and overflow control */
+         /* Global box-sizing and overflow control */
          *, 
          *::before,
          *::after {
-            box-sizing: border-box;
-        }
-        .shadow-root-container {
+               box-sizing: border-box;
+         }
+         .shadow-root-container {
             width: 100%;
             height: ${dropZoneOfPageHeight};
             overflow: visible;
-        }
-        .page-container, [data-container="true"] {
+         }
+         .page-container, [data-container="true"] {
             max-width: 100%;
             overflow: visible;
-        }
-        img {
+         }
+         img {
             max-width: 100%;
             height: auto;
-        }
+         }
 
-        /* Ensure text content wraps properly */
-        p, h1, h2, h3, h4, h5, h6, div, span, a {
+         /* Ensure text content wraps properly */
+         p, h1, h2, h3, h4, h5, h6, div, span, a {
             word-wrap: break-word;
             overflow-wrap: break-word;
-        }
+         }
 
-        [data-eid]:not([data-container="true"]):not(.drop-zone):not([data-column-container="true"]):not([data-table-container="true"]) {
+         [data-eid]:not([data-container="true"]):not(.drop-zone):not([data-column-container="true"]):not([data-table-container="true"]) {
             position: relative;
             max-width: 100%;
-        }
-        [data-eid]:not([data-container="true"]):not(.drop-zone):not([data-column-container="true"]):not([data-table-container="true"]):hover {
+         }
+         [data-eid]:not([data-container="true"]):not(.drop-zone):not([data-column-container="true"]):not([data-table-container="true"]):hover {
             outline: 2px solid #22c55e !important;
             outline-offset: 2px;
-        }
-        /* Prevent hover outline on elements inside column/table container */
-        [data-column-container="true"] [data-eid]:hover,
-        [data-table-container="true"] [data-eid]:hover,
-        [data-table-container="true"] table,
-        [data-table-container="true"] tr,
-        [data-table-container="true"] td,
-        [data-table-container="true"] th,
-        [data-table-container="true"] table:hover,
-        [data-table-container="true"] tr:hover,
-        [data-table-container="true"] td:hover,
-        [data-table-container="true"] th:hover {
+         }
+         /* Prevent hover outline on elements inside column/table container */
+         [data-column-container="true"] [data-eid]:hover,
+         [data-table-container="true"] [data-eid]:hover,
+         [data-table-container="true"] table,
+         [data-table-container="true"] tr,
+         [data-table-container="true"] td,
+         [data-table-container="true"] th,
+         [data-table-container="true"] table:hover,
+         [data-table-container="true"] tr:hover,
+         [data-table-container="true"] td:hover,
+         [data-table-container="true"] th:hover {
             outline: none !important;
-        }
-        [data-selected="true"] {
+         }
+         [data-selected="true"] {
             outline: 2px solid #22c55e !important;
             outline-offset: 2px;
-        }
-        /* Override: elements inside table container should not have selected outline */
-        [data-table-container="true"] [data-selected="true"],
-        [data-table-container="true"] table[data-selected="true"],
-        [data-table-container="true"] tr[data-selected="true"],
-        [data-table-container="true"] td[data-selected="true"],
-        [data-table-container="true"] th[data-selected="true"] {
+         }
+         /* Override: elements inside table container should not have selected outline */
+         [data-table-container="true"] [data-selected="true"],
+         [data-table-container="true"] table[data-selected="true"],
+         [data-table-container="true"] tr[data-selected="true"],
+         [data-table-container="true"] td[data-selected="true"],
+         [data-table-container="true"] th[data-selected="true"] {
             outline: none !important;
-        }
+         }
 
-        /* Element Toolbar */
-        .element-toolbar {
+         /* Element Toolbar */
+         .element-toolbar {
             display: none;
             position: absolute;
             top: -32px;
@@ -330,11 +330,11 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             gap: 2px;
             z-index: 1001;
             white-space: nowrap;
-        }
-        [data-selected="true"] > .element-toolbar {
+         }
+         [data-selected="true"] > .element-toolbar {
             display: flex;
-        }
-        .element-toolbar-btn {
+         }
+         .element-toolbar-btn {
             width: 24px;
             height: 24px;
             display: flex;
@@ -346,57 +346,57 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             cursor: pointer;
             border-radius: 3px;
             padding: 0;
-        }
-        .element-toolbar-btn:hover {
+         }
+         .element-toolbar-btn:hover {
             background: rgba(255,255,255,0.2);
-        }
-        .element-toolbar-btn[data-action="drag"] {
+         }
+         .element-toolbar-btn[data-action="drag"] {
             cursor: grab;
-        }
-        .element-toolbar-btn[data-action="drag"]:active {
+         }
+         .element-toolbar-btn[data-action="drag"]:active {
             cursor: grabbing;
-        }
+         }
 
-        /* Inline editing */
-        [contenteditable="true"] {
+         /* Inline editing */
+         [contenteditable="true"] {
             outline: none;
             cursor: text;
-        }
-       
-        .drop-zone {
+         }
+         
+         .drop-zone {
             transition: all 0.2s;
             position: relative;
-        }
-     
-        .drop-zone.drag-over {
+         }
+      
+         .drop-zone.drag-over {
             border-color: #22c55e !important;
             background: rgba(34, 197, 94, 0.1) !important;
             border: 1px dashed #cbd5e1;
-        }
-        /* Drag-over state for containers */
-        [data-container="true"].drag-over,
-        [data-column-container="true"].drag-over {
+         }
+         /* Drag-over state for containers */
+         [data-container="true"].drag-over,
+         [data-column-container="true"].drag-over {
             outline: 2px dashed #22c55e !important;
             outline-offset: 4px;
             background: rgba(34, 197, 94, 0.05) !important;
-        }
-        .drop-indicator {
+         }
+         .drop-indicator {
             height: 4px;
             background: #22c55e;
             margin: 2px 0;
             border-radius: 2px;
             pointer-events: none;
             box-shadow: 0 0 4px rgba(34, 197, 94, 0.5);
-        }
-        .dragging {
+         }
+         .dragging {
             opacity: 0.4;
-        }
-        [data-column-container="true"] {
+         }
+         [data-column-container="true"] {
             transition: all 0.2s;
             position: relative;
-        }
-        /* Invisible hover bridge to reach toolbar */
-        [data-column-container="true"]::before {
+         }
+         /* Invisible hover bridge to reach toolbar */
+         [data-column-container="true"]::before {
             content: '';
             position: absolute;
             top: -40px;
@@ -405,17 +405,17 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             height: 40px;
             width: 150px;
             pointer-events: auto;
-        }
-        [data-column-container="true"]:hover {
+         }
+         [data-column-container="true"]:hover {
             outline: 2px solid #3b82f6;
             outline-offset: 4px;
-        }
-        [data-column-container="true"][data-selected="true"] {
+         }
+         [data-column-container="true"][data-selected="true"] {
             outline: 2px solid #3b82f6 !important;
             outline-offset: 4px;
-        }
-        /* Column container toolbar - blue theme, visible on hover */
-        .column-toolbar {
+         }
+         /* Column container toolbar - blue theme, visible on hover */
+         .column-toolbar {
             position: absolute !important;
             background: #3b82f6 !important;
             top: -35px !important;
@@ -423,22 +423,22 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             transform: none !important;
             z-index: 1000 !important;
             flex-shrink: 0 !important;
-        }
-        [data-column-container="true"] > .column-toolbar {
+         }
+         [data-column-container="true"] > .column-toolbar {
             display: none !important;
-        }
-        [data-column-container="true"]:hover > .column-toolbar,
-        [data-column-container="true"][data-selected="true"] > .column-toolbar {
+         }
+         [data-column-container="true"]:hover > .column-toolbar,
+         [data-column-container="true"][data-selected="true"] > .column-toolbar {
             display: flex !important;
-        }
+         }
 
-        /* Table container styling - same pattern as column-container */
-        [data-table-container="true"] {
+         /* Table container styling - same pattern as column-container */
+         [data-table-container="true"] {
             transition: all 0.2s;
             position: relative;
-        }
-        /* Invisible hover bridge to reach toolbar */
-        [data-table-container="true"]::before {
+         }
+         /* Invisible hover bridge to reach toolbar */
+         [data-table-container="true"]::before {
             content: '';
             position: absolute;
             top: -40px;
@@ -447,17 +447,17 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             height: 40px;
             width: 150px;
             pointer-events: auto;
-        }
-        [data-table-container="true"]:hover {
+         }
+         [data-table-container="true"]:hover {
             outline: 2px solid #3b82f6;
             outline-offset: 4px;
-        }
-        [data-table-container="true"][data-selected="true"] {
+         }
+         [data-table-container="true"][data-selected="true"] {
             outline: 2px solid #3b82f6 !important;
             outline-offset: 4px;
-        }
-        /* Table container toolbar - blue theme, visible on hover */
-        .table-toolbar {
+         }
+         /* Table container toolbar - blue theme, visible on hover */
+         .table-toolbar {
             position: absolute !important;
             background: #3b82f6 !important;
             top: -35px !important;
@@ -465,32 +465,32 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             transform: none !important;
             z-index: 1000 !important;
             flex-shrink: 0 !important;
-        }
-        [data-table-container="true"] > .table-toolbar {
+         }
+         [data-table-container="true"] > .table-toolbar {
             display: none !important;
-        }
-        [data-table-container="true"]:hover > .table-toolbar,
-        [data-table-container="true"][data-selected="true"] > .table-toolbar {
+         }
+         [data-table-container="true"]:hover > .table-toolbar,
+         [data-table-container="true"][data-selected="true"] > .table-toolbar {
             display: flex !important;
-        }
-        [data-table-container="true"] td,
-        [data-table-container="true"] th {
+         }
+         [data-table-container="true"] td,
+         [data-table-container="true"] th {
             position: relative;
-        }
-        [data-table-container="true"] td:focus,
-        [data-table-container="true"] th:focus {
+         }
+         [data-table-container="true"] td:focus,
+         [data-table-container="true"] th:focus {
             outline: 2px solid #22c55e !important;
             outline-offset: -2px !important;
             background: rgba(34, 197, 94, 0.05) !important;
-        }
+         }
 
-        /* Overflow warning indicator for oversized elements */
-        [data-overflow-warning="true"] {
+         /* Overflow warning indicator for oversized elements */
+         [data-overflow-warning="true"] {
             outline: 2px dashed #f59e0b !important;
             outline-offset: 2px;
             position: relative;
-        }
-        [data-overflow-warning="true"]::after {
+         }
+         [data-overflow-warning="true"]::after {
             content: "Element exceeds page height";
             position: absolute;
             bottom: -24px;
@@ -503,10 +503,10 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             white-space: nowrap;
             z-index: 1000;
-        }
+         }
 
-        /* Merge field token styling */
-        .merge-field-token {
+         /* Merge field token styling */
+         .merge-field-token {
             background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%);
             color: #3730a3;
             padding: 1px 6px;
@@ -517,50 +517,50 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             white-space: nowrap;
             cursor: default;
             user-select: all;
-        }
-        .merge-field-token:hover {
+         }
+         .merge-field-token:hover {
             background: linear-gradient(135deg, #bfdbfe 0%, #c7d2fe 100%);
             border-color: #818cf8;
-        }
-        /* Invalid merge field (not found in data) */
-        .merge-field-token.invalid {
+         }
+         /* Invalid merge field (not found in data) */
+         .merge-field-token.invalid {
             background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
             color: #991b1b;
             border-color: #fca5a5;
-        }
-        .merge-field-token.invalid:hover {
+         }
+         .merge-field-token.invalid:hover {
             background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
-        }
+         }
 
-        /* Text and heading elements - maintain minimum size when empty */
-        p[data-eid],
-        h1[data-eid],
-        h2[data-eid],
-        h3[data-eid],
-        h4[data-eid],
-        h5[data-eid],
-        h6[data-eid],
-        a[data-eid] {
+         /* Text and heading elements - maintain minimum size when empty */
+         p[data-eid],
+         h1[data-eid],
+         h2[data-eid],
+         h3[data-eid],
+         h4[data-eid],
+         h5[data-eid],
+         h6[data-eid],
+         a[data-eid] {
             min-height: 1.5em;
             min-width: 50px;
             display: block;
             position: relative;
-        }
+         }
 
-        /* Empty elements need a zero-width space for cursor positioning */
-        p[data-empty="true"],
-        h1[data-empty="true"],
-        h2[data-empty="true"],
-        h3[data-empty="true"],
-        h4[data-empty="true"],
-        h5[data-empty="true"],
-        h6[data-empty="true"],
-        a[data-empty="true"] {
+         /* Empty elements need a zero-width space for cursor positioning */
+         p[data-empty="true"],
+         h1[data-empty="true"],
+         h2[data-empty="true"],
+         h3[data-empty="true"],
+         h4[data-empty="true"],
+         h5[data-empty="true"],
+         h6[data-empty="true"],
+         a[data-empty="true"] {
             min-height: 1.5em;
-        }
+         }
 
-        /* Placeholder for empty text blocks - positioned absolutely to not block cursor */
-        p[data-empty="true"]::before {
+         /* Placeholder for empty text blocks - positioned absolutely to not block cursor */
+         p[data-empty="true"]::before {
             content: 'Type your text here...';
             color: #9ca3af;
             font-style: italic;
@@ -569,15 +569,15 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             left: 0;
             top: 0;
             white-space: nowrap;
-        }
+         }
 
-        /* Placeholder for empty heading blocks */
-        h1[data-empty="true"]::before,
-        h2[data-empty="true"]::before,
-        h3[data-empty="true"]::before,
-        h4[data-empty="true"]::before,
-        h5[data-empty="true"]::before,
-        h6[data-empty="true"]::before {
+         /* Placeholder for empty heading blocks */
+         h1[data-empty="true"]::before,
+         h2[data-empty="true"]::before,
+         h3[data-empty="true"]::before,
+         h4[data-empty="true"]::before,
+         h5[data-empty="true"]::before,
+         h6[data-empty="true"]::before {
             content: 'Type your heading here...';
             color: #9ca3af;
             font-style: italic;
@@ -586,10 +586,10 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             left: 0;
             top: 0;
             white-space: nowrap;
-        }
+         }
 
-        /* Placeholder for empty button/link blocks */
-        a[data-empty="true"]::before {
+         /* Placeholder for empty button/link blocks */
+         a[data-empty="true"]::before {
             content: 'text...';
             color: rgba(255,255,255,0.7);
             font-style: italic;
@@ -599,10 +599,10 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             top: 50%;
             transform: translate(-50%, -50%);
             white-space: nowrap;
-        }
+         }
 
-        /* Placeholder for empty drop-zone containers - full design */
-        .drop-zone:empty::after {
+         /* Placeholder for empty drop-zone containers - full design */
+         .drop-zone:empty::after {
             display: grid;
             content: 'Drag & Drop content here';
             border: 1px dashed #00ab5552;
@@ -620,15 +620,15 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             box-sizing: border-box;
             background-color: #00ab551f;
             align-items: center;
-        }
+         }
 
-        /* Placeholder for empty table cells */
-        [data-table-container="true"] td:empty::after,
-        [data-table-container="true"] th:empty::after {
+         /* Placeholder for empty table cells */
+         [data-table-container="true"] td:empty::after,
+         [data-table-container="true"] th:empty::after {
             content: 'Type here...';
             color: #9ca3af;
             font-style: italic;
             pointer-events: none;
-        }
+         }
     `
 }
