@@ -168,6 +168,7 @@ export function useExport({
       container.querySelectorAll('#table-placeholder-marker').forEach(el => el.remove());
       container.querySelectorAll('[data-editable]').forEach(el => el.removeAttribute('data-editable'));
       container.querySelectorAll('[data-empty]').forEach(el => el.removeAttribute('data-empty'));
+      container.querySelectorAll('.drop-zone').forEach(el => el.classList.remove('drop-zone'));
 
       let result = container.innerHTML;
 
@@ -240,8 +241,9 @@ export function useExport({
          .querySelectorAll('.page-overlay, .page-gap, .page-gap-label, .page-count, .element-toolbar, #table-placeholder-marker')
          .forEach((el) => el.remove());
 
-      // Remove placeholder attributes
+      // Remove placeholder attributes and classes
       exportRoot.querySelectorAll('[data-empty]').forEach((el) => el.removeAttribute('data-empty'));
+      exportRoot.querySelectorAll('.drop-zone').forEach((el) => el.classList.remove('drop-zone'));
 
       // Restore original margin-top if stored
       exportRoot.querySelectorAll<HTMLElement>('[data-page-break-before], [data-xpath]').forEach((el) => {
