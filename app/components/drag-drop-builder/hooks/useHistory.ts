@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
 export interface HistoryState<T> {
    past: T[];
@@ -64,12 +64,18 @@ export function useHistory<T>(
       future: []
    });
 
+   const stateRef = useRef(currentState);
+   stateRef.current = currentState;
+
+   const onChangeRef = useRef(onStateChange);
+   onChangeRef.current = onStateChange;
+
    const saveHistory = useCallback(() => {
       setHistory(prev => ({
-         past: [...prev.past.slice(-maxHistory), currentState],
-         future: [] // Clear redo stack when new action is taken
+         past: [...prev.past.slice(-maxHistory), stateRef.current],
+         future: []
       }));
-   }, [currentState, maxHistory]);
+   }, [maxHistory]);
 
    const undo = useCallback(() => {
       setHistory(prev => {
@@ -77,32 +83,30 @@ export function useHistory<T>(
 
          const newPast = [...prev.past];
          const previous = newPast.pop()!;
-         const current = currentState;
 
-         onStateChange(previous);
+         onChangeRef.current(previous);
 
          return {
             past: newPast,
-            future: [current, ...prev.future]
+            future: [stateRef.current, ...prev.future]
          };
       });
-   }, [currentState, onStateChange]);
+   }, []);
 
    const redo = useCallback(() => {
       setHistory(prev => {
          if (prev.future.length === 0) return prev;
 
          const [next, ...newFuture] = prev.future;
-         const current = currentState;
 
-         onStateChange(next);
+         onChangeRef.current(next);
 
          return {
-            past: [...prev.past, current],
+            past: [...prev.past, stateRef.current],
             future: newFuture
          };
       });
-   }, [currentState, onStateChange]);
+   }, []);
 
    const clearHistory = useCallback(() => {
       setHistory({ past: [], future: [] });
