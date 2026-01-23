@@ -308,11 +308,6 @@ export function useEditorRenderer({
       if (!shadowReady) return;
 
       const shadow = shadowRootRef.current;
-      // if (!shadow) return;
-
-      // if (mountedRef.current) return;
-      // mountedRef.current = true;
-
       if (!shadow) return;
 
       // already mounted into this exact shadow root
