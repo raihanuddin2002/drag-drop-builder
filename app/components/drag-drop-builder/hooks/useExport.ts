@@ -400,6 +400,14 @@ export function useExport({
             }
             img { max-width: 100%; }
             li { margin: 2px 0; }
+            /* Restore sensible heading defaults for export */
+            h1 { font-size: 2em; margin: 0.67em 0; font-weight: 700; }
+            h2 { font-size: 1.5em; margin: 0.83em 0; font-weight: 700; }
+            h3 { font-size: 1.17em; margin: 1em 0; font-weight: 700; }
+            h4 { font-size: 1em; margin: 1.33em 0; font-weight: 700; }
+            h5 { font-size: 0.83em; margin: 1.67em 0; font-weight: 700; }
+            h6 { font-size: 0.67em; margin: 2.33em 0; font-weight: 700; }
+
             .pdf-ul-marker, .pdf-ol-marker { font-size: 1em; }
          </style>
          <div class="pdf-page">
