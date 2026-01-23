@@ -70,46 +70,51 @@ export function useHistory<T>(
    const onChangeRef = useRef(onStateChange);
    onChangeRef.current = onStateChange;
 
+   const historyRef = useRef(history);
+   historyRef.current = history;
+
    const saveHistory = useCallback(() => {
-      setHistory(prev => ({
-         past: [...prev.past.slice(-maxHistory), stateRef.current],
-         future: []
-      }));
+      const newHistory = {
+         past: [...historyRef.current.past.slice(-maxHistory), stateRef.current],
+         future: [] as T[]
+      };
+      historyRef.current = newHistory;
+      setHistory(newHistory);
    }, [maxHistory]);
 
    const undo = useCallback(() => {
-      setHistory(prev => {
-         if (prev.past.length === 0) return prev;
+      const prev = historyRef.current;
+      if (prev.past.length === 0) return;
 
-         const newPast = [...prev.past];
-         const previous = newPast.pop()!;
-
-         onChangeRef.current(previous);
-
-         return {
-            past: newPast,
-            future: [stateRef.current, ...prev.future]
-         };
-      });
+      const newPast = [...prev.past];
+      const previous = newPast.pop()!;
+      const newHistory = {
+         past: newPast,
+         future: [stateRef.current, ...prev.future]
+      };
+      historyRef.current = newHistory;
+      setHistory(newHistory);
+      onChangeRef.current(previous);
    }, []);
 
    const redo = useCallback(() => {
-      setHistory(prev => {
-         if (prev.future.length === 0) return prev;
+      const prev = historyRef.current;
+      if (prev.future.length === 0) return;
 
-         const [next, ...newFuture] = prev.future;
-
-         onChangeRef.current(next);
-
-         return {
-            past: [...prev.past, stateRef.current],
-            future: newFuture
-         };
-      });
+      const [next, ...newFuture] = prev.future;
+      const newHistory = {
+         past: [...prev.past, stateRef.current],
+         future: newFuture
+      };
+      historyRef.current = newHistory;
+      setHistory(newHistory);
+      onChangeRef.current(next);
    }, []);
 
    const clearHistory = useCallback(() => {
-      setHistory({ past: [], future: [] });
+      const empty = { past: [] as T[], future: [] as T[] };
+      historyRef.current = empty;
+      setHistory(empty);
    }, []);
 
    return {
