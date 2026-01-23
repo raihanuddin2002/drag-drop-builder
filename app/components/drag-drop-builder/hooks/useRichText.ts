@@ -2,7 +2,7 @@ import { useCallback, RefObject } from 'react';
 
 export interface UseRichTextOptions {
    shadowRootRef: RefObject<ShadowRoot | null>;
-   selectedXPath: string | null;
+   selectedEid: string | null;
    onSaveHistory: () => void;
    onUpdateContent: () => void;
    onCalculatePageBreaks: () => void;
@@ -37,7 +37,7 @@ export interface UseRichTextOptions {
  */
 export function useRichText({
    shadowRootRef,
-   selectedXPath,
+   selectedEid,
    onSaveHistory,
    onUpdateContent,
    onCalculatePageBreaks
@@ -72,8 +72,8 @@ export function useRichText({
          }
       }
 
-      if (!anchor && selectedXPath) {
-         const selectedEl = shadow.querySelector(`[data-xpath="${selectedXPath}"]`);
+      if (!anchor && selectedEid) {
+         const selectedEl = shadow.querySelector(`[data-eid="${selectedEid}"]`);
          if (selectedEl) {
             anchor = selectedEl.tagName === 'A' ? selectedEl as HTMLAnchorElement : selectedEl.querySelector('a');
          }
@@ -88,7 +88,7 @@ export function useRichText({
          anchor.parentNode?.replaceChild(fragment, anchor);
          onUpdateContent();
       }
-   }, [shadowRootRef, selectedXPath, getSelection, onSaveHistory, onUpdateContent]);
+   }, [shadowRootRef, selectedEid, getSelection, onSaveHistory, onUpdateContent]);
 
    // Handle font size
    const handleFontSize = useCallback((value: string) => {
@@ -152,6 +152,150 @@ export function useRichText({
             onUpdateContent();
          }
       }
+   }, [getSelection, onSaveHistory, onUpdateContent]);
+
+   // Handle underline with <u> tag
+   const handleUnderline = useCallback(() => {
+      const selection = getSelection();
+      if (!selection || selection.rangeCount === 0) return;
+
+      const range = selection.getRangeAt(0);
+      if (range.collapsed) return;
+
+      // Check if already inside a <u> tag - if so, remove it
+      let node: Node | null = range.startContainer;
+      let existingU: HTMLElement | null = null;
+      while (node) {
+         if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).tagName === 'U') {
+            existingU = node as HTMLElement;
+            break;
+         }
+         if (node === shadowRootRef.current || !node.parentNode) break;
+         node = node.parentNode;
+      }
+
+      onSaveHistory();
+      if (existingU) {
+         // Check if the entire <u> content is selected
+         const uRange = window.document.createRange();
+         uRange.selectNodeContents(existingU);
+         const selString = range.toString();
+         const uString = uRange.toString();
+
+         if (selString === uString) {
+            // Full selection: remove the entire <u> tag
+            const fragment = window.document.createDocumentFragment();
+            while (existingU.firstChild) {
+               fragment.appendChild(existingU.firstChild);
+            }
+            existingU.parentNode?.replaceChild(fragment, existingU);
+         } else {
+            // Partial selection: split into [before-u][selected-text][after-u]
+            const parent = existingU.parentNode;
+            if (!parent) return;
+
+            // Range from start of <u> to start of selection
+            const beforeRange = window.document.createRange();
+            beforeRange.setStart(existingU, 0);
+            beforeRange.setEnd(range.startContainer, range.startOffset);
+
+            // Range from end of selection to end of <u>
+            const afterRange = window.document.createRange();
+            afterRange.setStart(range.endContainer, range.endOffset);
+            afterRange.setEnd(existingU, existingU.childNodes.length);
+
+            const beforeContents = beforeRange.cloneContents();
+            const selectedContents = range.extractContents();
+            const afterContents = afterRange.cloneContents();
+
+            const fragment = window.document.createDocumentFragment();
+
+            // Before part (stays underlined)
+            if (beforeContents.textContent) {
+               const beforeU = window.document.createElement('u');
+               beforeU.appendChild(beforeContents);
+               fragment.appendChild(beforeU);
+            }
+
+            // Selected part (no underline)
+            fragment.appendChild(selectedContents);
+
+            // After part (stays underlined)
+            if (afterContents.textContent) {
+               const afterU = window.document.createElement('u');
+               afterU.appendChild(afterContents);
+               fragment.appendChild(afterU);
+            }
+
+            parent.replaceChild(fragment, existingU);
+         }
+      } else {
+         const u = window.document.createElement('u');
+         try {
+            range.surroundContents(u);
+         } catch {
+            // If surroundContents fails (partial selection across elements), use execCommand fallback
+            window.document.execCommand('underline', false);
+         }
+      }
+      onUpdateContent();
+   }, [shadowRootRef, getSelection, onSaveHistory, onUpdateContent]);
+
+   // Handle code block
+   const handleCodeBlock = useCallback(() => {
+      const selection = getSelection();
+      if (!selection || selection.rangeCount === 0) return;
+
+      const range = selection.getRangeAt(0);
+
+      onSaveHistory();
+      if (!range.collapsed) {
+         // Wrap selected text in inline <code> tag
+         const code = window.document.createElement('code');
+         code.style.backgroundColor = '#f3f4f6';
+         code.style.padding = '2px 6px';
+         code.style.borderRadius = '4px';
+         code.style.fontFamily = 'monospace';
+         code.style.fontSize = '0.9em';
+         try {
+            range.surroundContents(code);
+         } catch {
+            // Fallback: insert as HTML
+            const selectedText = range.toString();
+            range.deleteContents();
+            const code = window.document.createElement('code');
+            code.style.backgroundColor = '#f3f4f6';
+            code.style.padding = '2px 6px';
+            code.style.borderRadius = '4px';
+            code.style.fontFamily = 'monospace';
+            code.style.fontSize = '0.9em';
+            code.textContent = selectedText;
+            range.insertNode(code);
+         }
+      } else {
+         // No selection: insert a code block (<pre><code>)
+         const pre = window.document.createElement('pre');
+         pre.style.backgroundColor = '#1f2937';
+         pre.style.color = '#e5e7eb';
+         pre.style.padding = '16px';
+         pre.style.borderRadius = '8px';
+         pre.style.fontFamily = 'monospace';
+         pre.style.fontSize = '14px';
+         pre.style.overflowX = 'auto';
+         pre.style.whiteSpace = 'pre-wrap';
+         const code = window.document.createElement('code');
+         code.textContent = '\u00A0';
+         pre.appendChild(code);
+         range.insertNode(pre);
+
+         // Place cursor inside the code element
+         const newRange = document.createRange();
+         newRange.selectNodeContents(code);
+         newRange.collapse(false);
+         selection.removeAllRanges();
+         selection.addRange(newRange);
+      }
+      onUpdateContent();
    }, [getSelection, onSaveHistory, onUpdateContent]);
 
    // Handle indent/outdent
@@ -292,6 +436,16 @@ export function useRichText({
          return;
       }
 
+      if (command === 'underline') {
+         handleUnderline();
+         return;
+      }
+
+      if (command === 'codeBlock') {
+         handleCodeBlock();
+         return;
+      }
+
       // Default: use execCommand
       window.document.execCommand(command, false, value);
       setTimeout(() => onUpdateContent(), 0);
@@ -299,6 +453,8 @@ export function useRichText({
       shadowRootRef,
       getSelection,
       handleUnlink,
+      handleUnderline,
+      handleCodeBlock,
       handleFontSize,
       handleFontFamily,
       handleCreateLink,
@@ -310,6 +466,8 @@ export function useRichText({
    return {
       handleFormat,
       handleUnlink,
+      handleUnderline,
+      handleCodeBlock,
       handleFontSize,
       handleFontFamily,
       handleCreateLink,

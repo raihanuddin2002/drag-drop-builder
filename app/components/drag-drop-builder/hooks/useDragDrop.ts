@@ -51,7 +51,7 @@ export function useDragDrop({
       mouseY: number
    ): { insertBefore: HTMLElement | null; lastChild: boolean } => {
       const children = Array.from(
-         container.querySelectorAll(':scope > [data-xpath]:not(.drop-zone):not(.drop-indicator)')
+         container.querySelectorAll(':scope > [data-eid]:not(.drop-zone):not(.drop-indicator)')
       ) as HTMLElement[];
 
       if (children.length === 0) {

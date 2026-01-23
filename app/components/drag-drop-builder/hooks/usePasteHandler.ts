@@ -38,10 +38,10 @@ export function htmlToPlainText(html: string): string {
 }
 
 /**
- * Finds the nearest contenteditable parent with data-xpath attribute
+ * Finds the nearest contenteditable parent with data-eid attribute
  */
 export function findContentEditable(el: HTMLElement | null): HTMLElement | null {
-   return el?.closest('[contenteditable="true"][data-xpath]') as HTMLElement | null;
+   return el?.closest('[contenteditable="true"][data-eid]') as HTMLElement | null;
 }
 
 /**

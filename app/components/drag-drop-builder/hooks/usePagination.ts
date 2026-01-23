@@ -59,29 +59,25 @@ export function usePagination({
       const GAP = gap;
       const USABLE_H = PAGE_H - (PADDING * 2);
 
-      // Get blocks to paginate - in preview mode use direct children, otherwise use data-xpath elements
       const pagesWrapper = shadow.querySelector('.pages-wrapper');
       const isPreview = pagesWrapper?.getAttribute('data-preview-mode') === 'true';
 
-      const blocks = Array.from(contentFlow.children).filter(el => {
-         const htmlEl = el as HTMLElement;
-         if (isPreview) {
-            // In preview mode, use direct content children (skip toolbars and spacers)
-            return !htmlEl.classList.contains('element-toolbar')
-               && !htmlEl.classList.contains('page-break-spacer');
-         }
-         return htmlEl.hasAttribute('data-xpath');
-      }) as HTMLElement[];
+      const blocks = isPreview
+         ? Array.from(contentFlow.querySelectorAll(':scope > :not(.element-toolbar):not(.page-break-spacer)')) as HTMLElement[]
+         : Array.from(contentFlow.querySelectorAll(':scope > [data-eid]')) as HTMLElement[];
 
-      // Cleanup previous pagination
+      // If no blocks found (e.g. during blur transitions), preserve existing state
+      if (blocks.length === 0) return;
+
+      // Suppress margin-top transition so reset+measure is instant (no mid-animation values)
+      for (const el of blocks) el.style.transition = 'none';
+
+      // Cleanup previous pagination only when we have blocks to recalculate
       pageOverlay.innerHTML = '';
       for (const el of blocks) resetPaginationStyling(el);
 
-      if (blocks.length === 0) {
-         onPageCountChange(1);
-         pagesContainer.style.minHeight = `${PAGE_H}px`;
-         return;
-      }
+      // Force reflow so transitions are fully suppressed before measuring
+      void contentFlow.offsetHeight;
 
       // Measure once
       const flowRect = contentFlow.getBoundingClientRect();
@@ -119,6 +115,10 @@ export function usePagination({
       }
 
       const totalPages = pageIndex;
+
+      // // Re-enable transitions now that new margins are in place
+      // for (const el of blocks) el.style.transition = '';
+
       onPageCountChange(totalPages);
 
       // Render page gap overlays

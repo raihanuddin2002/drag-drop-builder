@@ -8,7 +8,7 @@ export interface UseElementSelectionOptions {
  * useElementSelection - A reusable hook for managing element selection in an editor
  *
  * Features:
- * - Tracks selected element by XPath
+ * - Tracks selected element by stable element ID (data-eid)
  * - Provides helper to get selected DOM element
  * - Maintains selection after re-renders
  * - Clears selection when element is removed
@@ -16,42 +16,42 @@ export interface UseElementSelectionOptions {
  * @example
  * ```tsx
  * const {
- *   selectedXPath,
- *   setSelectedXPath,
+ *   selectedEid,
+ *   setSelectedEid,
  *   getSelectedElement,
  *   clearSelection
  * } = useElementSelection({ shadowRootRef });
  * ```
  */
 export function useElementSelection({ shadowRootRef }: UseElementSelectionOptions) {
-   const [selectedXPath, setSelectedXPath] = useState<string | null>(null);
+   const [selectedEid, setSelectedEid] = useState<string | null>(null);
 
    // Get the currently selected DOM element
    const getSelectedElement = useCallback((): HTMLElement | null => {
       const shadow = shadowRootRef.current;
-      if (!shadow || !selectedXPath) return null;
+      if (!shadow || !selectedEid) return null;
 
-      return shadow.querySelector(`[data-xpath="${selectedXPath}"]`) as HTMLElement | null;
-   }, [shadowRootRef, selectedXPath]);
+      return shadow.querySelector(`[data-eid="${selectedEid}"]`) as HTMLElement | null;
+   }, [shadowRootRef, selectedEid]);
 
    // Clear selection
    const clearSelection = useCallback(() => {
-      setSelectedXPath(null);
+      setSelectedEid(null);
    }, []);
 
-   // Select element by XPath
-   const selectElement = useCallback((xpath: string | null) => {
-      setSelectedXPath(xpath);
+   // Select element by ID
+   const selectElement = useCallback((eid: string | null) => {
+      setSelectedEid(eid);
    }, []);
 
    // Select element by DOM element
    const selectDOMElement = useCallback((element: HTMLElement | null) => {
       if (!element) {
-         setSelectedXPath(null);
+         setSelectedEid(null);
          return;
       }
-      const xpath = element.getAttribute('data-xpath');
-      setSelectedXPath(xpath);
+      const eid = element.getAttribute('data-eid');
+      setSelectedEid(eid);
    }, []);
 
    // Update data-selected attribute on elements
@@ -65,13 +65,13 @@ export function useElementSelection({ shadowRootRef }: UseElementSelectionOption
       });
 
       // Add selection to current element
-      if (selectedXPath) {
-         const el = shadow.querySelector(`[data-xpath="${selectedXPath}"]`);
+      if (selectedEid) {
+         const el = shadow.querySelector(`[data-eid="${selectedEid}"]`);
          if (el) {
             el.setAttribute('data-selected', 'true');
          }
       }
-   }, [shadowRootRef, selectedXPath]);
+   }, [shadowRootRef, selectedEid]);
 
    // Sync selection attribute when selection changes
    useEffect(() => {
@@ -81,18 +81,18 @@ export function useElementSelection({ shadowRootRef }: UseElementSelectionOption
    // Verify selection still exists after content changes
    const verifySelection = useCallback(() => {
       const shadow = shadowRootRef.current;
-      if (!shadow || !selectedXPath) return;
+      if (!shadow || !selectedEid) return;
 
-      const el = shadow.querySelector(`[data-xpath="${selectedXPath}"]`);
+      const el = shadow.querySelector(`[data-eid="${selectedEid}"]`);
       if (!el) {
          // Element no longer exists, clear selection
-         setSelectedXPath(null);
+         setSelectedEid(null);
       }
-   }, [shadowRootRef, selectedXPath]);
+   }, [shadowRootRef, selectedEid]);
 
    return {
-      selectedXPath,
-      setSelectedXPath,
+      selectedEid,
+      setSelectedEid,
       getSelectedElement,
       clearSelection,
       selectElement,

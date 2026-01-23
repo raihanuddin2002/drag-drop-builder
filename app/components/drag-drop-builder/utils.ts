@@ -79,6 +79,8 @@ export const validateMergeFields = (
 
 export const generatePageId = (): string => `page-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
+export const generateElementId = (): string => `eid-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 7)}`;
+
 export const createDefaultPage = (name: string = 'Page 1', preset?: PagePreset): EditorPage => ({
    id: generatePageId(),
    name,
@@ -156,7 +158,7 @@ export const detectOverflow = (shadowRoot: ShadowRoot, pageHeight: number): HTML
    // Get direct children that are content elements (not toolbars)
    const children = Array.from(container.children).filter(child => {
       const el = child as HTMLElement;
-      return el.hasAttribute('data-xpath') && !el.classList.contains('element-toolbar');
+      return el.hasAttribute('data-eid') && !el.classList.contains('element-toolbar');
    }) as HTMLElement[];
 
    const overflowing: HTMLElement[] = [];
@@ -251,7 +253,7 @@ export const splitTextElement = (
 
    // Build HTML preserving the element structure
    const clone = element.cloneNode(false) as HTMLElement;
-   clone.removeAttribute('data-xpath');
+   clone.removeAttribute('data-eid');
    clone.removeAttribute('data-selected');
    clone.removeAttribute('contenteditable');
    clone.removeAttribute('draggable');
@@ -276,14 +278,14 @@ export const cleanElementForMigration = (element: HTMLElement): string => {
 
    // Remove editor-specific attributes from root and all children
    const cleanAttrs = (el: Element) => {
-      el.removeAttribute('data-xpath');
+      el.removeAttribute('data-eid');
       el.removeAttribute('data-selected');
       el.removeAttribute('contenteditable');
       el.removeAttribute('draggable');
    };
 
    cleanAttrs(clone);
-   clone.querySelectorAll('[data-xpath]').forEach(cleanAttrs);
+   clone.querySelectorAll('[data-eid]').forEach(cleanAttrs);
    clone.querySelectorAll('.element-toolbar').forEach(t => t.remove());
 
    return clone.outerHTML;

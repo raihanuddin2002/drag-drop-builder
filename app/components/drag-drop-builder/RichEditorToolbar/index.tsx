@@ -4,6 +4,7 @@ import {
    AlignLeft,
    AlignRight,
    Bold,
+   Code,
    Indent,
    Italic,
    Link,
@@ -172,6 +173,9 @@ export default function RichTextToolbar({
          </button>
          <button onMouseDown={(e) => handleMouseDown(e, 'strikeThrough')} className="p-2 hover:bg-gray-100 rounded" title="Strikethrough">
             <Strikethrough size={16} />
+         </button>
+         <button onMouseDown={(e) => handleMouseDown(e, 'codeBlock')} className="p-2 hover:bg-gray-100 rounded" title="Code">
+            <Code size={16} />
          </button>
 
          <div className="w-px h-6 bg-gray-300 mx-1" />

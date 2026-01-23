@@ -2,7 +2,7 @@ import { useCallback, RefObject } from 'react';
 
 export interface UseTableManipulationOptions {
    shadowRootRef: RefObject<ShadowRoot | null>;
-   selectedXPath: string | null;
+   selectedEid: string | null;
    onSaveHistory: () => void;
    onUpdateContent: () => void;
    onCalculatePageBreaks: () => void;
@@ -39,7 +39,7 @@ export interface UseTableManipulationOptions {
  */
 export function useTableManipulation({
    shadowRootRef,
-   selectedXPath,
+   selectedEid,
    onSaveHistory,
    onUpdateContent,
    onCalculatePageBreaks,
@@ -50,9 +50,9 @@ export function useTableManipulation({
    // Get selected element helper
    const getSelectedElement = useCallback((): HTMLElement | null => {
       const shadow = shadowRootRef.current;
-      if (!shadow || !selectedXPath) return null;
-      return shadow.querySelector(`[data-xpath="${selectedXPath}"]`) as HTMLElement | null;
-   }, [shadowRootRef, selectedXPath]);
+      if (!shadow || !selectedEid) return null;
+      return shadow.querySelector(`[data-eid="${selectedEid}"]`) as HTMLElement | null;
+   }, [shadowRootRef, selectedEid]);
 
    // Get table from selected element
    const getTable = useCallback((): HTMLTableElement | null => {

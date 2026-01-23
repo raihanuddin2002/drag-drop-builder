@@ -157,8 +157,13 @@ export function useExport({
       const container = doc.body.firstElementChild;
       if (!container) return content;
 
-      container.querySelectorAll('[data-xpath]').forEach(el => {
-         el.removeAttribute('data-xpath');
+      // Unwrap merge field <code> elements back to plain text
+      container.querySelectorAll('code[data-merge-field]').forEach(el => {
+         el.replaceWith(el.textContent || '');
+      });
+
+      container.querySelectorAll('[data-eid]').forEach(el => {
+         el.removeAttribute('data-eid');
          el.removeAttribute('data-selected');
          el.removeAttribute('draggable');
          el.removeAttribute('contenteditable');
@@ -223,13 +228,63 @@ export function useExport({
    // Export as PDF using html2pdf.js
    const exportPDF = useCallback(async (document: ExportDocument) => {
       const shadow = shadowRootRef.current;
-      if (!shadow) throw new Error('Shadow root not ready');
+      if (!shadow) throw new Error("Shadow root not ready");
 
-      // Resolve merge fields in content before parsing
-      const resolvedContent = resolveMergeFields(document.content, mergeFieldData);
+      // 1) Get live content
+      const liveContentFlow = shadow.querySelector(".content-flow") as HTMLElement | null;
+      if (!liveContentFlow) {
+         throw new Error("No content to export. Please add some content first.");
+      }
 
-      // Parse snapshot
-      const tempDiv = window.document.createElement('div');
+      // 2) IMPORTANT: clone first, remove editor UI BEFORE serialization
+      //    This prevents invalid HTML like <p><div class="element-toolbar">...</div>text</p>
+      //    which breaks text-align during parsing.
+      const cleanedClone = liveContentFlow.cloneNode(true) as HTMLElement;
+
+      cleanedClone
+         .querySelectorAll(
+            ".page-overlay, .page-gap, .page-gap-label, .page-count, .element-toolbar, #table-placeholder-marker"
+         )
+         .forEach((el) => el.remove());
+
+      // Unwrap merge field <code> elements back to plain text (in the clone)
+      cleanedClone.querySelectorAll("code[data-merge-field]").forEach((el) => {
+         el.replaceWith(el.textContent || "");
+      });
+
+      // Remove placeholder attributes and classes
+      cleanedClone.querySelectorAll("[data-empty]").forEach((el) => el.removeAttribute("data-empty"));
+      cleanedClone.querySelectorAll(".drop-zone").forEach((el) => el.classList.remove("drop-zone"));
+
+      // Restore original margins + remove editor attributes
+      cleanedClone.querySelectorAll<HTMLElement>("[data-eid]").forEach((el) => {
+         // restore original margin-top if pagination touched it
+         if (el.dataset.pbOrigMt !== undefined) {
+            el.style.marginTop = el.dataset.pbOrigMt; // could be ""
+            delete el.dataset.pbOrigMt;
+         }
+
+         el.removeAttribute("data-eid");
+         el.removeAttribute("data-selected");
+         el.removeAttribute("data-editable");
+         el.removeAttribute("draggable");
+         el.removeAttribute("contenteditable");
+      });
+
+      // Keep [data-page-break-before] for css pagebreaks, but restore margin if needed
+      cleanedClone.querySelectorAll<HTMLElement>("[data-page-break-before]").forEach((el) => {
+         if (el.dataset.pbOrigMt !== undefined) {
+            el.style.marginTop = el.dataset.pbOrigMt;
+            delete el.dataset.pbOrigMt;
+         }
+      });
+
+      // 3) Serialize cleaned HTML, THEN resolve merge fields on valid markup
+      const cleanedHtml = cleanedClone.outerHTML;
+      const resolvedContent = resolveMergeFields(cleanedHtml, mergeFieldData);
+
+      // 4) Parse snapshot (safe now)
+      const tempDiv = window.document.createElement("div");
       tempDiv.innerHTML = resolvedContent;
 
       // Prefer exporting ONLY the actual content
@@ -241,16 +296,39 @@ export function useExport({
          .querySelectorAll('.page-overlay, .page-gap, .page-gap-label, .page-count, .element-toolbar, #table-placeholder-marker')
          .forEach((el) => el.remove());
 
+      // Unwrap merge field <code> elements back to plain text
+      exportRoot.querySelectorAll('code[data-merge-field]').forEach((el) => {
+         el.replaceWith(el.textContent || '');
+      });
+
       // Remove placeholder attributes and classes
       exportRoot.querySelectorAll('[data-empty]').forEach((el) => el.removeAttribute('data-empty'));
       exportRoot.querySelectorAll('.drop-zone').forEach((el) => el.classList.remove('drop-zone'));
 
-      // Restore original margin-top if stored
-      exportRoot.querySelectorAll<HTMLElement>('[data-page-break-before], [data-xpath]').forEach((el) => {
+      // Clean all editor attributes and restore original margins
+      exportRoot.querySelectorAll<HTMLElement>('[data-eid]').forEach((el) => {
+         // Restore original margin-top if pagination modified it
          if ((el as any).dataset.pbOrigMt !== undefined) {
             el.style.marginTop = (el as any).dataset.pbOrigMt;
             delete (el as any).dataset.pbOrigMt;
          }
+         // Remove editor-specific attributes
+         el.removeAttribute('data-eid');
+         el.removeAttribute('data-selected');
+         el.removeAttribute('data-editable');
+         el.removeAttribute('draggable');
+         el.removeAttribute('contenteditable');
+      });
+
+      // Handle elements with page-break-before - restore margins and remove the attribute
+      // Note: We remove data-page-break-before because html2pdf will use CSS page-break rules,
+      // and we've already restored the original margins so content flows naturally
+      exportRoot.querySelectorAll<HTMLElement>('[data-page-break-before]').forEach((el) => {
+         if ((el as any).dataset.pbOrigMt !== undefined) {
+            el.style.marginTop = (el as any).dataset.pbOrigMt;
+            delete (el as any).dataset.pbOrigMt;
+         }
+         // Don't remove data-page-break-before - it's needed for CSS page breaks in PDF
       });
 
       // Collect editor CSS from shadow root
@@ -322,6 +400,14 @@ export function useExport({
             }
             img { max-width: 100%; }
             li { margin: 2px 0; }
+            /* Restore sensible heading defaults for export */
+            h1 { font-size: 2em; margin: 0.67em 0; font-weight: 700; }
+            h2 { font-size: 1.5em; margin: 0.83em 0; font-weight: 700; }
+            h3 { font-size: 1.17em; margin: 1em 0; font-weight: 700; }
+            h4 { font-size: 1em; margin: 1.33em 0; font-weight: 700; }
+            h5 { font-size: 0.83em; margin: 1.67em 0; font-weight: 700; }
+            h6 { font-size: 0.67em; margin: 2.33em 0; font-weight: 700; }
+
             .pdf-ul-marker, .pdf-ol-marker { font-size: 1em; }
          </style>
          <div class="pdf-page">
@@ -377,6 +463,9 @@ export function useExport({
             } as any)
             .from(host.querySelector('.pdf-page') as HTMLElement)
             .save();
+      } catch (error) {
+         console.error('PDF Export failed:', error);
+         throw error;
       } finally {
          host.remove();
       }
