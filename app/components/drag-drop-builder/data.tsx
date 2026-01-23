@@ -630,5 +630,8 @@ export const EDITOR_STYLES = (data: Record<string, any> | null = null) => {
             font-style: italic;
             pointer-events: none;
          }
+
+         /* Pagination transition effect */
+         .content-flow > [data-eid] { transition: margin-top 120ms ease; }
     `
 }
